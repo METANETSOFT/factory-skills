@@ -7,7 +7,7 @@ The factory owns pipeline discipline and nothing else. Interface craft, motion, 
 Before the first substantive read, edit or command of a job — not after you have started and stalled:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve <job>
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve <job>
 ```
 
 Job kinds, exactly these fifteen: `research product architecture program-design implement verify review debug design-ui design-visual motion marketing docs loop handoff`. There is no `plan` job — the plan phase runs off [slice.md](slice.md) and needs no craft skill; if it needs a fact, that is a `research` detour. An unknown name returns the list instead of a route, so pick from these rather than guessing one.
@@ -42,7 +42,7 @@ The offer is one line, not a paragraph:
 Every tier-2 or tier-3 route is a ruling, so it goes in the ledger where a later session can see it (Law 7):
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note ruling "design-ui without impeccable; degraded craft floor per skill-map; cost-if-wrong: polish below the skill's bar, recoverable by re-running design after install"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note ruling "design-ui without impeccable; degraded craft floor per skill-map; cost-if-wrong: polish below the skill's bar, recoverable by re-running design after install"
 ```
 
 Silence is the failure this prevents. A user who installed a design skill and receives design work made without it believes they got the skill's output, and that belief is not correctable later, because the work looks finished either way.
@@ -94,12 +94,12 @@ Why each route exists, and the failure it prevents:
 Exactly six external ids are plain files in public repos and land on disk with:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs fetch <external-id>
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts fetch <external-id>
 ```
 
 Fetchable: `humanlayer-codebase-design`, `humanlayer-improve-codebase-architecture`, `humanlayer-show-me`, `humanlayer-design-control-loop`, `humanlayer-build-iterated-agentic-loop`, `humanlayer-improve-claude-md`. Everything else — including `humanlayer-rpi-research`, `superpowers` and `superpowers-systematic-debugging` — is a plugin-marketplace install; `fetch` exits 1 on it, so print the `install:` line the script gave you and let the user run it rather than reporting an install that did not happen.
 
-`node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs doctor` reports coverage across all fifteen jobs at once, including whether each playbook file exists. Run it when the user asks what the factory can reach here — at most once per session, never before each job.
+`node ${CLAUDE_SKILL_DIR}/scripts/skills.ts doctor` reports coverage across all fifteen jobs at once, including whether each playbook file exists. Run it when the user asks what the factory can reach here — at most once per session, never before each job.
 
 ## Two standing decisions
 
@@ -126,9 +126,9 @@ Training data lags releases, and one wrong signature costs a debugging cycle tha
 
 Before the job's first substantive edit, write or command, all four must hold:
 
-1. `skills.mjs resolve <job>` has run for this job kind this session, and the file named on its `playbook:` line has been read.
+1. `skills.ts resolve <job>` has run for this job kind this session, and the file named on its `playbook:` line has been read.
 2. Every `prefer` entry is loaded, or its absence is stated in your reply with the exact `install:` or `find:` string the script printed.
 3. Every loaded `also` entry has a trigger you can quote against this task, and the total loaded is no more than `prefer` + 2.
-4. Any tier-2 or tier-3 route is recorded with `state.mjs note ruling` and named out loud to the user.
+4. Any tier-2 or tier-3 route is recorded with `state.ts note ruling` and named out loud to the user.
 
 Miss any one and you are guessing at craft the user already paid to have on disk — which reads, from their side, exactly like the skill having been used.

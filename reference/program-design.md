@@ -7,11 +7,11 @@ Phase 4 answers one question: **what will the code look like before it exists?**
 ## Order
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs phase program-design
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve program-design
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts phase program-design
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve program-design
 ```
 
-Re-read `RESEARCH.md` and `ARCHITECTURE.md` in full before writing a line. Re-read, do not remember: instructions lose the attention competition against recent tokens, and a design written from a memory of the architecture invents a second architecture that quietly disagrees with the first. `skills.mjs` names `code-structure` when the design touches shared services or repeated operational blocks, and the external `humanlayer-codebase-design`, which is where this vocabulary comes from. Installed → use it. Missing but installable → offer `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs fetch humanlayer-codebase-design`. Unavailable → work from this file and say out loud you are on the degraded path (Law 9).
+Re-read `RESEARCH.md` and `ARCHITECTURE.md` in full before writing a line. Re-read, do not remember: instructions lose the attention competition against recent tokens, and a design written from a memory of the architecture invents a second architecture that quietly disagrees with the first. `skills.ts` names `code-structure` when the design touches shared services or repeated operational blocks, and the external `humanlayer-codebase-design`, which is where this vocabulary comes from. Installed → use it. Missing but installable → offer `node ${CLAUDE_SKILL_DIR}/scripts/skills.ts fetch humanlayer-codebase-design`. Unavailable → work from this file and say out loud you are on the degraded path (Law 9).
 
 **Any signature that names a third-party type, client or return shape is resolved through Context7, never from memory** — `npx ctx7@latest library "<name>" "<what to look up>"` then `npx ctx7@latest docs <id> "<question>"`. Training data lags releases; a wrong signature written here is copied into every slice and costs a debugging cycle per slice instead of one lookup.
 
@@ -61,10 +61,10 @@ Anything a caller must know that is not written here becomes tribal knowledge, a
 
 ## Design it twice when the interface is load-bearing
 
-Trigger, not a mood: the interface has **3+ call sites**, or every slice in the plan depends on it, or changing it later means a data migration or a breaking release. Then **dispatch two subagents in parallel and have each design it a radically different way** — not two variants of one idea. Give each the same `RESEARCH.md` facts and constraints, and no knowledge of the other's approach. Split by context boundary, never by role: two designers, not a designer and a critic — role-split handoffs are a documented telephone game that loses fidelity at every hop. Each writes to `<workspace>/work/<slug>/design-alt-<n>.md` and returns its interface block plus deletion-test verdict; `state.mjs tick subagent` per dispatch (budget: 12 a session). Compare on three axes only — **depth**, **locality**, **seam placement** — pick one, and record the loser with its reason. A rejected alternative written down stops the next session relitigating it.
+Trigger, not a mood: the interface has **3+ call sites**, or every slice in the plan depends on it, or changing it later means a data migration or a breaking release. Then **dispatch two subagents in parallel and have each design it a radically different way** — not two variants of one idea. Give each the same `RESEARCH.md` facts and constraints, and no knowledge of the other's approach. Split by context boundary, never by role: two designers, not a designer and a critic — role-split handoffs are a documented telephone game that loses fidelity at every hop. Each writes to `<workspace>/work/<slug>/design-alt-<n>.md` and returns its interface block plus deletion-test verdict; `state.ts tick subagent` per dispatch (budget: 12 a session). Compare on three axes only — **depth**, **locality**, **seam placement** — pick one, and record the loser with its reason. A rejected alternative written down stops the next session relitigating it.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "interface for <module>: chose <A> over <B> — deeper at <x>, change lands in one file"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note decision "interface for <module>: chose <A> over <B> — deeper at <x>, change lands in one file"
 ```
 
 ## Write PROGRAM-DESIGN.md
@@ -146,7 +146,7 @@ export interface ThingService {
 
 ## What this phase does not do
 
-It does not write implementation, migrations or config. It does not restate the architecture in new words. It does not order the work — that is [slice.md](slice.md). It does not decide anything the user looks at; that routes to `design-ui` and is owned by `impeccable`. If it uncovers a fact that breaks the architecture, stop and amend `ARCHITECTURE.md` rather than carrying the contradiction forward — [implement.md](implement.md) follows whichever artifact it read last. An undecidable detail is a ruling with its cost-if-wrong (Law 8), never a parked session; anything you could not settle is `state.mjs note unfinished` (Law 3).
+It does not write implementation, migrations or config. It does not restate the architecture in new words. It does not order the work — that is [slice.md](slice.md). It does not decide anything the user looks at; that routes to `design-ui` and is owned by `impeccable`. If it uncovers a fact that breaks the architecture, stop and amend `ARCHITECTURE.md` rather than carrying the contradiction forward — [implement.md](implement.md) follows whichever artifact it read last. An undecidable detail is a ruling with its cost-if-wrong (Law 8), never a parked session; anything you could not settle is `state.ts note unfinished` (Law 3).
 
 ## Exit condition
 

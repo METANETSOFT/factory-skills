@@ -16,7 +16,7 @@ The factory exists because of one asymmetry. Models are excellent at solving pro
 
 Everything the factory knows lives in files. Context is a cache; the workspace is the truth.
 
-**The workspace is not in the user's repository.** A run produces a research note, a PRD, a program design, a plan, a ledger and a pile of evidence — scaffolding for the work, not part of the product. Committing it is clutter the user did not ask for. So it lives under the OS temp directory, keyed by the project path: it survives `/clear`, a new session and a machine that stays up, which is everything a handoff needs, and it disappears on reboot, which is right for scaffolding. Setup reports the exact path as `workspace`; use that path, and write `<workspace>/…` when you refer to it. Work that genuinely belongs in the repo is opted into once with `state.mjs init --in-project`, and `FACTORY_HOME` relocates every workspace for someone who wants them kept.
+**The workspace is not in the user's repository.** A run produces a research note, a PRD, a program design, a plan, a ledger and a pile of evidence — scaffolding for the work, not part of the product. Committing it is clutter the user did not ask for. So it lives under the OS temp directory, keyed by the project path: it survives `/clear`, a new session and a machine that stays up, which is everything a handoff needs, and it disappears on reboot, which is right for scaffolding. Setup reports the exact path as `workspace`; use that path, and write `<workspace>/…` when you refer to it. Work that genuinely belongs in the repo is opted into once with `state.ts init --in-project`, and `FACTORY_HOME` relocates every workspace for someone who wants them kept.
 
 Never write a factory artifact into the user's project unless they asked for it there.
 
@@ -26,9 +26,9 @@ These hold for the entire session, not just the turn that loaded them. They over
 
 **1 — Evidence before claims.** You may not say something works, passes, is fixed, or is done unless you ran the command that proves it *in this message* and read its output. "Should work", "looks right", "I've updated it so it now" are all violations. A subagent reporting success is not evidence; the diff and the test output are.
 
-**2 — Never trade completeness for space.** When context gets tight you will feel a pull toward shorter answers, stubs, `// ...rest unchanged`, "for brevity", collapsing three tasks into one, or declaring victory early. That pull is the failure mode this skill exists to defeat. The correct response to a full context window is *always* to hand off, never to compress the work. Run `state.mjs handoff`, write the handoff completely, and stop. A handoff costs one file. A rushed ending costs a rewrite.
+**2 — Never trade completeness for space.** When context gets tight you will feel a pull toward shorter answers, stubs, `// ...rest unchanged`, "for brevity", collapsing three tasks into one, or declaring victory early. That pull is the failure mode this skill exists to defeat. The correct response to a full context window is *always* to hand off, never to compress the work. Run `state.ts handoff`, write the handoff completely, and stop. A handoff costs one file. A rushed ending costs a rewrite.
 
-**3 — Unfinished work gets named, never hidden.** If you could not do something, `state.mjs note unfinished "<what and why>"` and say it in plain words. Silently reducing scope is the one unrecoverable error: the user believes they have something they do not have.
+**3 — Unfinished work gets named, never hidden.** If you could not do something, `state.ts note unfinished "<what and why>"` and say it in plain words. Silently reducing scope is the one unrecoverable error: the user believes they have something they do not have.
 
 **4 — No placeholders in delivered code.** No `TODO: implement`, no stub returning a fake value, no test weakened or deleted to make a suite green, no mock standing in for a thing you were asked to build. If the real implementation is out of scope, it is Law 3, not a stub.
 
@@ -36,7 +36,7 @@ These hold for the entire session, not just the turn that loaded them. They over
 
 **6 — Build vertically.** Ship one thin end-to-end slice, verify it, then add the next. Models default to horizontal (all the schema, then all the services, then all the UI) which produces nothing testable until the very end, exactly when re-steering is most expensive. Force the vertical order.
 
-**7 — The ledger is the memory.** Every decision, ruling, risk and unfinished item goes to `state.mjs note` as it happens, not in a summary at the end that a truncated session never writes.
+**7 — The ledger is the memory.** Every decision, ruling, risk and unfinished item goes to `state.ts note` as it happens, not in a summary at the end that a truncated session never writes.
 
 **8 — Rulings, not stalls.** Mid-pipeline, an ambiguity is yours to decide: pick, record it as a ruling with its cost-if-wrong, continue. Stop and ask only for irreversible or destructive operations, security-sensitive actions, effects outside this worktree the user has not authorised (merge, push to shared, publish, send), or a plan so broken every path is a guess. A wrong ruling costs rework the user can see and undo. A session parked on a question costs their day.
 
@@ -49,7 +49,7 @@ These hold for the entire session, not just the turn that loaded them. They over
 Run once per session, before anything else:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/context.mjs --brief
+node ${CLAUDE_SKILL_DIR}/scripts/context.ts --brief
 ```
 
 It reports the phase, the active work, open items carried from previous sessions, git state and project shape, and emits directives. **Follow its directives.** Do not re-run it, and do not re-derive what it already told you.
@@ -88,18 +88,18 @@ Phases are skippable *deliberately and out loud*, never by drift. A one-file bug
 | `marketing [target]` | Positioning, copy, launch, docs — [reference/marketing.md](reference/marketing.md) |
 | `debug [symptom]` | Root-cause-first failure hunting — [reference/debug.md](reference/debug.md) |
 | `loop [goal]` | Unattended iteration toward a measurable target — [reference/loop.md](reference/loop.md) |
-| `status` | `state.mjs show` and report it plainly |
+| `status` | `state.ts show` and report it plainly |
 | `handoff` | Freeze the session into a resumable document — [reference/context-discipline.md](reference/context-discipline.md) |
 | `resume` | Read the handoff and continue |
-| `skills` | `skills.mjs doctor` — what the tree can reach from here |
-| `doctor` | `doctor.mjs` — is this skill itself still coherent (links, scripts, map)? Run it after editing the skill |
+| `skills` | `skills.ts doctor` — what the tree can reach from here |
+| `doctor` | `doctor.ts` — is this skill itself still coherent (links, scripts, map)? Run it after editing the skill |
 
 ## The skill tree
 
 Before doing the work of a phase or a domain job, resolve what should be loaded:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve <job>
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve <job>
 ```
 
 Jobs: `research product architecture program-design implement verify review debug design-ui design-visual motion marketing docs loop handoff`.

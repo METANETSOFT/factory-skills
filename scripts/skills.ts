@@ -17,25 +17,34 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
+import type { ExternalEntry, InstalledSkill, RegistryEntry, ResolvedSkill, SkillMap } from './lib/types.ts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const BASE = path.dirname(HERE)
-const MAP = JSON.parse(fs.readFileSync(path.join(HERE, 'skill-map.json'), 'utf8'))
+const MAP: SkillMap = JSON.parse(fs.readFileSync(path.join(HERE, 'skill-map.json'), 'utf8'))
 
 const argv = process.argv.slice(2)
-const has = (f) => argv.includes(`--${f}`)
+const has = (f: string) => argv.includes(`--${f}`)
 const positional = argv.filter((a) => !a.startsWith('--'))
+
+type SkillScope = 'project' | 'user' | 'plugin'
+
+interface SearchRoot {
+  scope: SkillScope
+  dir: string
+  deep: boolean
+}
 
 // Skills can live in several places. Project-local wins over user-global, which
 // wins over plugins — the same precedence the harness uses.
-function searchRoots() {
-  const roots = []
-  const seen = new Set()
-  const add = (scope, dir, deep = false) => {
+function searchRoots(): SearchRoot[] {
+  const roots: SearchRoot[] = []
+  const seen = new Set<string>()
+  const add = (scope: SkillScope, dir: string, deep = false) => {
     if (!dir || !fs.existsSync(dir)) return
     // Skill dirs are routinely symlinked (e.g. ~/.claude/skills/x -> ~/.agents/skills/x),
     // so dedupe on the resolved path or the same tree gets walked twice.
-    let key
+    let key: string
     try {
       key = fs.realpathSync(dir)
     } catch {
@@ -57,15 +66,51 @@ function searchRoots() {
   return roots
 }
 
-function readFrontmatter(file) {
+/** Folded block scalars (`>`) join their lines with a space; a blank line is a paragraph break. */
+function foldBlock(body: string[]): string {
+  let acc = ''
+  for (const line of body) {
+    if (line === '') acc += '\n\n'
+    else if (acc === '' || acc.endsWith('\n')) acc += line
+    else acc += ' ' + line
+  }
+  return acc.trim()
+}
+
+function readFrontmatter(file: string): Record<string, string> {
   try {
     const head = fs.readFileSync(file, 'utf8').slice(0, 4000)
     const m = head.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-    if (!m) return {}
-    const out = {}
-    for (const line of m[1].split(/\r?\n/)) {
+    const block = m?.[1]
+    if (block === undefined) return {}
+    const out: Record<string, string> = {}
+    const lines = block.split(/\r?\n/)
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line === undefined) continue
       const kv = line.match(/^([a-zA-Z-]+):\s*(.*)$/)
-      if (kv) out[kv[1]] = kv[2].replace(/^["']|["']$/g, '')
+      const key = kv?.[1]
+      const raw = kv?.[2]
+      if (key === undefined || raw === undefined) continue
+      let val = raw.replace(/^["']|["']$/g, '')
+      // A YAML block scalar (`description: >-`, `|`, `>2`) carries its value on the
+      // indented lines that follow, and the key regex above rejects every one of
+      // them. Without this, the value is the bare indicator: several installed
+      // skills reported a description of ">-" and their prose was thrown away.
+      if (/^[|>][-+]?\d*$/.test(val)) {
+        const folded = val.startsWith('>')
+        const body: string[] = []
+        for (;;) {
+          const next = lines[i + 1]
+          // The block ends at the first line that is neither blank nor indented.
+          if (next === undefined) break
+          if (next.trim() !== '' && !/^\s/.test(next)) break
+          body.push(next.trim())
+          i++
+        }
+        val = folded ? foldBlock(body) : body.join('\n').trim()
+      }
+      out[key] = val
     }
     return out
   } catch {
@@ -73,18 +118,21 @@ function readFrontmatter(file) {
   }
 }
 
-let _installed = null
-function installed() {
+let _installed: Map<string, InstalledSkill> | null = null
+function installed(): Map<string, InstalledSkill> {
   if (_installed) return _installed
-  const found = new Map()
-  const visit = (dir, scope, depth = 0) => {
-    let entries = []
+  const found = new Map<string, InstalledSkill>()
+  const visit = (dir: string, scope: SkillScope, depth: number, maxDepth: number): void => {
+    let entries: fs.Dirent[] = []
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true })
     } catch {
       return
     }
     for (const e of entries) {
+      // Nothing under these can be a skill, and they are what makes a deeper walk
+      // expensive — a plugin checkout carries both.
+      if (e.name === '.git' || e.name === 'node_modules') continue
       const sub = path.join(dir, e.name)
       // A symlinked skill dir reports isDirectory() === false, and most installs
       // symlink. Follow the link instead of skipping it.
@@ -101,17 +149,23 @@ function installed() {
         const fm = readFrontmatter(skillFile)
         // Register under both keys: the command comes from the directory name for
         // personal/project skills, while `name` is what plugin skills answer to.
-        for (const key of new Set([fm.name, e.name].filter(Boolean))) {
+        const names = fm.name ? [fm.name, e.name] : [e.name]
+        for (const key of new Set(names)) {
           if (!found.has(key)) {
             found.set(key, { name: key, dir: sub, scope, description: (fm.description || '').slice(0, 200) })
           }
         }
-      } else if (depth < 3) {
-        visit(sub, scope, depth + 1)
+      } else if (depth < maxDepth) {
+        visit(sub, scope, depth + 1, maxDepth)
       }
     }
   }
-  for (const r of searchRoots()) visit(r.dir, r.scope, r.deep ? 0 : 2)
+  // Plugin trees nest far deeper than a personal skills dir: a marketplace skill
+  // lives at plugins/marketplaces/<mp>/plugins/<plugin>/skills/<skill>, six levels
+  // down. A flat budget of 3 reached four of them, so every marketplace-installed
+  // skill was reported missing while sitting on disk. Deep roots get their own
+  // budget; the other roots keep exactly the walk they had.
+  for (const r of searchRoots()) visit(r.dir, r.scope, r.deep ? 0 : 2, r.deep ? 6 : 3)
   _installed = found
   return found
 }
@@ -123,16 +177,42 @@ const BUILTINS = new Set([
   'claude-api', 'handoff', 'update-config', 'keybindings-help', 'fewer-permission-prompts',
 ])
 
-function resolveJob(job) {
-  const spec = MAP.jobs[job]
-  if (!spec) return { ok: false, error: `unknown job "${job}"`, jobs: Object.keys(MAP.jobs) }
+type ResolvedExternal = ExternalEntry & { id: string }
+
+interface JobResolution {
+  ok: true
+  job: string
+  playbook: string
+  playbookRel: string
+  prefer: ResolvedSkill[]
+  also: ResolvedSkill[]
+  external: ResolvedExternal[]
+  missing: string[]
+}
+
+type ResolveResult = JobResolution | { ok: false; error: string; jobs: string[] }
+
+function resolveJob(job: string | undefined): ResolveResult {
+  // `job` is positional, so it can be absent entirely. An absent name reports the
+  // same way as a name that is simply not in the map.
+  const spec = job === undefined ? undefined : MAP.jobs[job]
+  if (job === undefined || spec === undefined) {
+    return { ok: false, error: `unknown job "${job}"`, jobs: Object.keys(MAP.jobs) }
+  }
   const inst = installed()
-  const decide = (name) => {
-    if (inst.has(name)) return { name, status: 'installed', ...inst.get(name) }
+  const decide = (name: string): ResolvedSkill => {
+    const hit = inst.get(name)
+    // Spelled out rather than spread: `hit.name` is the key it was registered
+    // under, i.e. `name` itself, so a spread here only reads as a second source
+    // of truth for a field that already has one.
+    if (hit) return { name, status: 'installed', dir: hit.dir, scope: hit.scope, description: hit.description }
     if (BUILTINS.has(name)) return { name, status: 'builtin', dir: null, scope: 'builtin' }
     // Missing is not a dead end: carry the provenance so the caller can offer a
     // real install line, or fall back to the degraded path with its eyes open.
-    const reg = MAP.registry?.[name] || {}
+    const entry = MAP.registry?.[name]
+    // A few registry keys hold prose (_comment, _provenance_warning); a string
+    // there is documentation, not provenance for a skill.
+    const reg: RegistryEntry = entry && typeof entry === 'object' ? entry : {}
     return {
       name,
       status: 'missing',
@@ -143,8 +223,11 @@ function resolveJob(job) {
     }
   }
   const prefer = (spec.prefer || []).map(decide)
-  const also = (spec.also || []).map((n) => ({ ...decide(n), trigger: spec.triggers?.[n] || null }))
-  const external = (spec.external || []).map((id) => ({ id, ...(MAP.external[id] || {}) }))
+  const also = (spec.also || []).map((n): ResolvedSkill => ({ ...decide(n), trigger: spec.triggers?.[n] || null }))
+  const external = (spec.external || []).map((id): ResolvedExternal => {
+    const e = MAP.external[id]
+    return e ? { id, ...e } : { id }
+  })
   return {
     ok: true,
     job,
@@ -159,7 +242,13 @@ function resolveJob(job) {
 
 // --- GitHub fetcher (only for skills that are plain files in a public repo) ---
 
-const FETCHABLE = {
+interface FetchSpec {
+  repo: string
+  prefix: string
+  into: string
+}
+
+const FETCHABLE: Record<string, FetchSpec> = {
   'humanlayer-codebase-design': {
     repo: 'humanlayer/fold',
     prefix: '.claude/skills/codebase-design',
@@ -192,27 +281,49 @@ const FETCHABLE = {
   },
 }
 
-async function fetchSkill(id, destRoot) {
-  const spec = FETCHABLE[id]
-  if (!spec) {
+type FetchResult =
+  | { ok: false; error: string; hint?: string }
+  | { ok: true; id: string; repo: string; dest: string; files: string[]; count: number }
+
+/** Blob paths under `prefix` in a GitHub tree response, which arrives as unknown JSON. */
+function blobPaths(tree: unknown, prefix: string): string[] {
+  if (typeof tree !== 'object' || tree === null || !('tree' in tree)) return []
+  const raw = tree.tree
+  if (!Array.isArray(raw)) return []
+  const entries: unknown[] = raw
+  const paths: string[] = []
+  for (const e of entries) {
+    if (typeof e !== 'object' || e === null) continue
+    if (!('type' in e) || e.type !== 'blob') continue
+    if (!('path' in e) || typeof e.path !== 'string') continue
+    if (!e.path.startsWith(prefix + '/')) continue
+    paths.push(e.path)
+  }
+  return paths
+}
+
+async function fetchSkill(id: string | undefined, destRoot: string): Promise<FetchResult> {
+  const spec = id === undefined ? undefined : FETCHABLE[id]
+  if (id === undefined || spec === undefined) {
+    const ext = id === undefined ? undefined : MAP.external[id]
     return {
       ok: false,
       error: `"${id}" is not fetchable as plain files`,
-      hint: MAP.external[id]?.install || `fetchable ids: ${Object.keys(FETCHABLE).join(', ')}`,
+      hint: ext?.install || `fetchable ids: ${Object.keys(FETCHABLE).join(', ')}`,
     }
   }
   const api = `https://api.github.com/repos/${spec.repo}/git/trees/HEAD?recursive=1`
   const r = await fetch(api, { headers: { 'user-agent': 'factory-skill' } })
   if (!r.ok) return { ok: false, error: `GitHub tree ${r.status} for ${spec.repo}` }
   const tree = await r.json()
-  const files = (tree.tree || []).filter((t) => t.type === 'blob' && t.path.startsWith(spec.prefix + '/'))
+  const files = blobPaths(tree, spec.prefix)
   if (!files.length) return { ok: false, error: `no files under ${spec.prefix} in ${spec.repo}` }
 
   const dest = path.join(destRoot, spec.into)
-  const written = []
+  const written: string[] = []
   for (const f of files) {
-    const rel = f.path.slice(spec.prefix.length + 1)
-    const url = `https://raw.githubusercontent.com/${spec.repo}/HEAD/${f.path}`
+    const rel = f.slice(spec.prefix.length + 1)
+    const url = `https://raw.githubusercontent.com/${spec.repo}/HEAD/${f}`
     const res = await fetch(url, { headers: { 'user-agent': 'factory-skill' } })
     if (!res.ok) continue
     const buf = Buffer.from(await res.arrayBuffer())
@@ -226,8 +337,23 @@ async function fetchSkill(id, destRoot) {
 
 // --- CLI ---
 
-const out = (o) => process.stdout.write(JSON.stringify(o, null, 2) + '\n')
+const out = (o: unknown) => process.stdout.write(JSON.stringify(o, null, 2) + '\n')
 const cmd = positional[0]
+
+interface JobSummary {
+  playbook: string
+  prefer: string[] | undefined
+  also: string[] | undefined
+}
+
+interface JobReport {
+  playbookExists: boolean
+  installed: string[]
+  missing: string[]
+  external: string[]
+  /** Only set if the map changed under us between listing a job and resolving it. */
+  error?: string
+}
 
 switch (cmd) {
   case 'list': {
@@ -239,7 +365,7 @@ switch (cmd) {
   case 'jobs': {
     out({
       jobs: Object.fromEntries(
-        Object.entries(MAP.jobs).map(([k, v]) => [k, { playbook: v.playbook, prefer: v.prefer, also: v.also }]),
+        Object.entries(MAP.jobs).map(([k, v]): [string, JobSummary] => [k, { playbook: v.playbook, prefer: v.prefer, also: v.also }]),
       ),
     })
     break
@@ -290,10 +416,16 @@ switch (cmd) {
 
   case 'doctor': {
     const inst = installed()
-    const report = {}
-    let missingAll = new Set()
+    const report: Record<string, JobReport> = {}
+    let missingAll = new Set<string>()
     for (const job of Object.keys(MAP.jobs)) {
       const r = resolveJob(job)
+      // The name came straight from MAP.jobs, so this cannot fire — but reporting
+      // it keeps a malformed map out of the report as a crash with no JSON.
+      if (!r.ok) {
+        report[job] = { playbookExists: false, installed: [], missing: [], external: [], error: r.error }
+        continue
+      }
       report[job] = {
         playbookExists: fs.existsSync(r.playbook),
         installed: [...r.prefer, ...r.also].filter((s) => s.status !== 'missing').map((s) => s.name),

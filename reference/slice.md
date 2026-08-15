@@ -5,10 +5,10 @@ Phase 5 writes `<workspace>/work/<slug>/PLAN.md`: the vertical slices and the or
 ## Order
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs phase plan
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts phase plan
 ```
 
-There is no `plan` job in `skills.mjs resolve` — nothing to load. If the plan needs a fact it does not have, that is a [research.md](research.md) detour, not a slice written around the gap.
+There is no `plan` job in `skills.ts resolve` — nothing to load. If the plan needs a fact it does not have, that is a [research.md](research.md) detour, not a slice written around the gap.
 
 Read `PROGRAM-DESIGN.md`, `ARCHITECTURE.md`, and `PRD.md` §Acceptance criteria **in full, from disk, now**. Re-read rather than remember: instructions lose the attention competition against more recent tokens, and a plan written from a memory of the design invents signatures the design already settled — which the implementer then follows *instead of* the design.
 
@@ -62,10 +62,10 @@ Mechanical check on the name: if a slice is named for a layer or an artifact ("a
 | Threshold | Governs | Why that number |
 |---|---|---|
 | 500 added+deleted lines | hard cut — above this, split the slice | reviewers treat 1–2k-line diffs as machine-authored and stop reading; one team declines review above 500, and an unreviewed slice is an unverified slice |
-| 300 added lines | run `slop.mjs check` mid-slice per [anti-slop.md](anti-slop.md) | per-slice erosion is invisible in one diff and undeniable across eight |
+| 300 added lines | run `slop.ts check` mid-slice per [anti-slop.md](anti-slop.md) | per-slice erosion is invisible in one diff and undeniable across eight |
 | ~200 lines of `PLAN.md` | the whole plan file | the human checkpoint below only works if the plan is readable in minutes; the 2,000 lines it becomes are not |
 
-If a slice cannot fit under 500, it is two slices — find the intermediate state that still runs. Structural budgets and added/deleted reporting are owned by [anti-slop.md](anti-slop.md); this file only decides where the cuts go. Size against the session too: `state.mjs` returns `HANDOFF_NOW` at 3 slice ticks, and setting the total below spends one of them, so a session that plans can implement at most two slices before handing off. A 14-slice plan is a five-session plan, and it survives handoff because `PLAN.md` is the handoff's detail pointer ([context-discipline.md](context-discipline.md)).
+If a slice cannot fit under 500, it is two slices — find the intermediate state that still runs. Structural budgets and added/deleted reporting are owned by [anti-slop.md](anti-slop.md); this file only decides where the cuts go. Size against the session too: `state.ts` returns `HANDOFF_NOW` at 3 slice ticks, and setting the total below spends one of them, so a session that plans can implement at most two slices before handing off. A 14-slice plan is a five-session plan, and it survives handoff because `PLAN.md` is the handoff's detail pointer ([context-discipline.md](context-discipline.md)).
 
 ## PLAN.md
 
@@ -132,9 +132,9 @@ Edit the cell in place. Do not append a second record below the table: `PLAN.md`
 Do not write `SLICE-3-SUMMARY.md`, `PROGRESS.md`, or a changelog nobody asked for. A trail of summaries has no single authority; the next session reads whichever it finds first, and unprompted summary-writing is itself a documented context-anxiety tell. One artifact stays true and everything else derives from it. Deviations found during implementation are edited into the slice they belong to, with the reason — a plan that no longer describes the build is worse than no plan, because it is still trusted.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs slice 0/<total>
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "<slug>: <n> slices, slice 1 = <name>, verified by <command>"
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "<risk> lands at slice <n>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts slice 0/<total>
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note decision "<slug>: <n> slices, slice 1 = <name>, verified by <command>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note risk "<risk> lands at slice <n>"
 ```
 
 ## Exit condition
@@ -145,12 +145,12 @@ All six true before [implement.md](implement.md) runs:
 2. Slice 1 runs end to end, even if every value in it is hard-coded.
 3. Every slice has a `Verify` that is a command with a checkable expectation, and a `Rollback` that is a revert target.
 4. Every row of `PRD.md` §Acceptance criteria appears in the Criteria coverage table, mapped to a slice or to "Not in any slice" with a reason.
-5. `state.mjs slice 0/<total>` has been run.
+5. `state.ts slice 0/<total>` has been run.
 6. **The user has approved the plan.**
 
 Item 6 is the second and last mandatory human checkpoint. [research.md](research.md) was the first, and it may proceed on a recorded non-response; this one may not. The pipeline waits here on purpose: one bad line in a plan produces hundreds of bad code lines, and ~200 lines of plan is reviewable in minutes where the 2,000 lines it becomes are not. This is not a Law 8 stall — it is the checkpoint the pipeline is built around, and approving on the user's behalf is the one ruling you may not make. Present the slice names, the order rationale and the risks in your reply; do not paste the file. Under [loop.md](loop.md) the approval happened when the loop's target was agreed — say which approval you are running on.
 
-After approval: `state.mjs phase implement`, then hand slice 1 to a fresh subagent per [implement.md](implement.md). Every slice not yet started is open to change; every slice already verified is history.
+After approval: `state.ts phase implement`, then hand slice 1 to a fresh subagent per [implement.md](implement.md). Every slice not yet started is open to change; every slice already verified is history.
 
 ## What plan does not do
 

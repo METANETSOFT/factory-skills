@@ -9,9 +9,9 @@ Research runs on `main`. Do not create a worktree: worktrees isolate the filesys
 ## Order
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs start <slug> --title "..."   # if this work has no slug yet
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs phase research
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve research
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts start <slug> --title "..."   # if this work has no slug yet
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts phase research
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve research
 ```
 
 `resolve` names the doc-lookup skill and the optional out-of-repo sources with their triggers (Law 9). Installed → use it. Missing but installable → give the user the one-line install it prints. Unavailable → take the `degrade` path it names and say out loud that you are on it. Never substitute your own judgement for a skill the user deliberately installed, and never invent a repository URL for one that is missing.
@@ -45,7 +45,7 @@ what if you are reasoning rather than reading. Do not propose solutions.
 Write findings to <workspace>/work/<slug>/research-<area>.md, then return 10 lines or fewer.
 ```
 
-Subagents write to a file, not only to prose (Law 7): prose returned into a context that later resets is memory that evaporates. Run `state.mjs tick subagent` after each dispatch; the cap is 12 and crossing it returns `HANDOFF_NOW`. **A subagent reporting "I confirmed X" is not evidence (Law 1) — its citation is.** Open at least one `file:line` from every subagent yourself and check the line says what the report says. If one is wrong, discard that subagent's entire report and read the area yourself: fabricated evidence is documented behaviour, including an invented `git bisect` result and a Playwright repro video of a bug that was never reproduced. One fabricated citation means the rest are unverified, not that the rest are fine.
+Subagents write to a file, not only to prose (Law 7): prose returned into a context that later resets is memory that evaporates. Run `state.ts tick subagent` after each dispatch; the cap is 12 and crossing it returns `HANDOFF_NOW`. **A subagent reporting "I confirmed X" is not evidence (Law 1) — its citation is.** Open at least one `file:line` from every subagent yourself and check the line says what the report says. If one is wrong, discard that subagent's entire report and read the area yourself: fabricated evidence is documented behaviour, including an invented `git bisect` result and a Playwright repro video of a bug that was never reproduced. One fabricated citation means the rest are unverified, not that the rest are fine.
 
 ## Step 3 — Library and API facts come from Context7, never from memory
 
@@ -134,9 +134,9 @@ Report to the user in **10 lines or fewer**, in this order: the question; the tw
 This is a named checkpoint the pipeline is designed around, not a stall (Law 8) — and not a lock either. If the user does not answer, record it and proceed at the stated confidence rather than parking the session.
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "research confirmed by user"
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "research unconfirmed — proceeding at <confidence>, <what could be wrong>"
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note unfinished "<area> not investigated — <risk if the assumption is wrong>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note decision "research confirmed by user"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note risk "research unconfirmed — proceeding at <confidence>, <what could be wrong>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note unfinished "<area> not investigated — <risk if the assumption is wrong>"
 ```
 
 ## Context pressure during this phase

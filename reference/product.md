@@ -7,8 +7,8 @@ Phase 2 writes `<workspace>/work/<slug>/PRD.md`: the user problem, the evidence 
 ## Before writing
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs phase product
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve product
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts phase product
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve product
 ```
 
 Read `FACTORY.md` and `<workspace>/work/<slug>/RESEARCH.md` in full **in this session**, not from the memory of having written them — facts lose the attention competition against more recent tokens. The charter's Definition of done is the parent of everything here; contradicting it silently is how one project ends up with two "done"s. If research has not run and this touches code nobody has read, run [research.md](research.md) first: a misread fact becomes an architecture several PRs later, and product is the phase where a wrong assumption gets the most leverage. Announcement before outcome, outcome before criteria — reversed, you get the metric that was easiest to measure with a problem statement written afterwards to justify it.
@@ -123,8 +123,8 @@ least one error path, at least one empty / first-run state, one per surface stat
 Record the bar as it is settled, not in a summary at the end that a truncated session never writes (Law 7):
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "<slug>: pass bar is <metric> <op> <threshold>, measured by <command>"
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "<claim> is inferred, not observed"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note decision "<slug>: pass bar is <metric> <op> <threshold>, measured by <command>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note risk "<claim> is inferred, not observed"
 ```
 
 ## When to skip this phase
@@ -139,7 +139,7 @@ Two cases, and only these:
 Skipping is a ruling, never a default:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note ruling "skipping product: scoped fix to <behaviour>, spec lives at <where>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note ruling "skipping product: scoped fix to <behaviour>, spec lives at <where>"
 ```
 
 Say it out loud in your reply as well: a silent skip is indistinguishable from forgetting, and the artifact that would have caught the missing success measure is the one nobody notices is absent. **"I cannot write a measurable outcome" is not a skip condition** — it is one question to the user, and if nobody can answer it, a ruling under Law 8 recording the proxy you gated on and its cost-if-wrong.

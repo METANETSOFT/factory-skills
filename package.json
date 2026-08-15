@@ -1,0 +1,21 @@
+{
+  "name": "@metanetsoft/factory-skill",
+  "version": "1.1.0",
+  "private": true,
+  "description": "A Claude Code skill that runs software work as a pipeline: seven phases, all state on disk, handoff instead of compression, and slop controlled by a measured threshold.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "test": "node test/run.ts",
+    "typecheck": "tsc --noEmit",
+    "doctor": "node scripts/doctor.ts",
+    "check": "npm run typecheck && npm test && npm run doctor"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.0"
+  }
+}

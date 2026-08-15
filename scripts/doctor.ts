@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// factory/doctor.mjs — does this skill still hold together?
+// factory/doctor.ts — does this skill still hold together?
 //
 // A skill rots quietly. A playbook gets renamed and six cross-links die; a
 // script grows a subcommand and the docs keep naming the old one; a job is
@@ -11,39 +11,54 @@
 // your code: with a command, not a reading.
 //
 // Usage:
-//   node doctor.mjs            human-readable report, exit 1 on any problem
-//   node doctor.mjs --json
+//   node doctor.ts            human-readable report, exit 1 on any problem
+//   node doctor.ts --json
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { PHASES, NOTE_KINDS } from './lib/types.ts'
+import type { SkillMap, RegistryEntry } from './lib/types.ts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const BASE = path.dirname(HERE)
 const REF = path.join(BASE, 'reference')
 const asJson = process.argv.includes('--json')
 
-const problems = []
-const add = (where, msg) => problems.push({ where, msg })
+interface Problem {
+  where: string
+  msg: string
+}
+
+const problems: Problem[] = []
+const add = (where: string, msg: string): void => {
+  problems.push({ where, msg })
+}
 
 // What the scripts actually accept. The docs are checked against this, so a
 // renamed subcommand fails here instead of failing in front of a user.
-const SUBCOMMANDS = {
-  'state.mjs': ['init', 'show', 'start', 'phase', 'slice', 'note', 'resolve', 'tick', 'handoff', 'finish'],
-  'skills.mjs': ['list', 'jobs', 'resolve', 'fetch', 'doctor'],
-  'slop.mjs': ['scan', 'baseline', 'check'],
-  'hooks.mjs': ['on', 'off', 'status', 'gate'],
-  'doctor.mjs': [],
-  'context.mjs': [],
+const SUBCOMMANDS: Record<string, string[]> = {
+  'state.ts': ['init', 'show', 'start', 'phase', 'slice', 'note', 'resolve', 'tick', 'handoff', 'finish'],
+  'skills.ts': ['list', 'jobs', 'resolve', 'fetch', 'doctor'],
+  'slop.ts': ['scan', 'baseline', 'check'],
+  'hooks.ts': ['on', 'off', 'status', 'gate'],
+  'doctor.ts': [],
+  'context.ts': [],
 }
-const NOTE_KINDS = ['ruling', 'unfinished', 'risk', 'decision', 'evidence']
-const PHASES = ['uninitialized', 'research', 'product', 'architecture', 'program-design', 'plan', 'implement', 'verify', 'review', 'done']
 
-const scriptFiles = new Set(fs.readdirSync(HERE).filter((f) => f.endsWith('.mjs')))
-const map = JSON.parse(fs.readFileSync(path.join(HERE, 'skill-map.json'), 'utf8'))
+const scriptFiles = new Set(fs.readdirSync(HERE).filter((f) => f.endsWith('.ts')))
+
+function readSkillMap(): SkillMap {
+  const raw = fs.readFileSync(path.join(HERE, 'skill-map.json'), 'utf8')
+  return JSON.parse(raw) as SkillMap
+}
+const map = readSkillMap()
 const jobs = new Set(Object.keys(map.jobs))
 const refFiles = fs.existsSync(REF) ? fs.readdirSync(REF).filter((f) => f.endsWith('.md')) : []
 const refSet = new Set(refFiles)
+
+/** A capture group that the regex guarantees, expressed without a non-null assertion. */
+const group = (m: RegExpMatchArray, i: number): string => m[i] ?? ''
 
 // --- SKILL.md -----------------------------------------------------------------
 
@@ -53,7 +68,11 @@ const fm = skill.match(/^---\r?\n([\s\S]*?)\r?\n---/)
 
 if (!fm) add('SKILL.md', 'no YAML frontmatter')
 else {
-  const field = (n) => (fm[1].match(new RegExp(`^${n}:\\s*([\\s\\S]*?)(?=\\n[a-z_-]+:|$)`, 'm')) || [])[1]?.trim() || ''
+  const frontmatter = group(fm, 1)
+  const field = (n: string): string => {
+    const m = frontmatter.match(new RegExp(`^${n}:\\s*([\\s\\S]*?)(?=\\n[a-z_-]+:|$)`, 'm'))
+    return m ? group(m, 1).trim() : ''
+  }
   const desc = field('description')
   const when = field('when_to_use')
   if (!desc) add('SKILL.md', 'no description — the model cannot route to this skill without one')
@@ -68,7 +87,8 @@ else {
 }
 
 for (const m of skill.matchAll(/\]\(reference\/([^)#]+)/g)) {
-  if (!refSet.has(m[1])) add('SKILL.md', `links to a missing playbook: reference/${m[1]}`)
+  const target = group(m, 1)
+  if (!refSet.has(target)) add('SKILL.md', `links to a missing playbook: reference/${target}`)
 }
 
 // --- reference playbooks ------------------------------------------------------
@@ -85,49 +105,74 @@ for (const f of refFiles) {
   if (/(api[_-]?key|token|password|secret)\s*[:=]\s*['"][^'"]{8,}/i.test(src)) add(where, 'possible embedded credential')
 
   for (const m of src.matchAll(/\]\(([^)#]+\.md)/g)) {
-    if (m[1].startsWith('http')) continue
-    if (!refSet.has(path.basename(m[1]))) add(where, `broken link → ${m[1]}`)
+    const target = group(m, 1)
+    if (target.startsWith('http')) continue
+    if (!refSet.has(path.basename(target))) add(where, `broken link → ${target}`)
   }
-  for (const m of src.matchAll(/scripts\/([a-z-]+\.mjs)(?:\s+([a-z-]+))?/g)) {
-    const [, script, sub] = m
+  for (const m of src.matchAll(/scripts\/([a-z-]+\.ts)(?:\s+([a-z-]+))?/g)) {
+    const script = group(m, 1)
+    const sub = m[2]
+    const known = SUBCOMMANDS[script]
     if (!scriptFiles.has(script)) add(where, `names a script that does not exist: ${script}`)
-    else if (sub && SUBCOMMANDS[script]?.length && !SUBCOMMANDS[script].includes(sub)) {
+    else if (sub && known && known.length > 0 && !known.includes(sub)) {
       add(where, `names a subcommand that does not exist: ${script} ${sub}`)
     }
   }
-  for (const m of src.matchAll(/state\.mjs\s+note\s+([a-z-]+)/g)) {
-    if (!NOTE_KINDS.includes(m[1])) add(where, `invented note kind: ${m[1]}`)
+  // Docs that still name the pre-TypeScript filenames point at files that are gone.
+  for (const m of src.matchAll(/scripts\/([a-z-]+\.mjs)/g)) {
+    add(where, `stale filename from before the TypeScript conversion: ${group(m, 1)}`)
   }
-  for (const m of src.matchAll(/state\.mjs\s+phase\s+([a-z-]+)/g)) {
-    if (!PHASES.includes(m[1])) add(where, `invented phase: ${m[1]}`)
+  for (const m of src.matchAll(/state\.ts\s+note\s+([a-z-]+)/g)) {
+    const kind = group(m, 1)
+    if (!(NOTE_KINDS as readonly string[]).includes(kind)) add(where, `invented note kind: ${kind}`)
   }
-  for (const m of src.matchAll(/skills\.mjs\s+resolve\s+([a-z-]+)/g)) {
-    if (!jobs.has(m[1])) add(where, `invented job kind: ${m[1]}`)
+  for (const m of src.matchAll(/state\.ts\s+phase\s+([a-z-]+)/g)) {
+    const ph = group(m, 1)
+    if (!(PHASES as readonly string[]).includes(ph)) add(where, `invented phase: ${ph}`)
+  }
+  for (const m of src.matchAll(/skills\.ts\s+resolve\s+([a-z-]+)/g)) {
+    const job = group(m, 1)
+    if (!jobs.has(job)) add(where, `invented job kind: ${job}`)
   }
   // A bare relative script path will not resolve from the user's project dir.
-  for (const m of src.matchAll(/(?:^|[`\s])node\s+((?!\$\{CLAUDE_SKILL_DIR\})[^\s`]*scripts\/[a-z-]+\.mjs)/gm)) {
-    add(where, `script path is missing \${CLAUDE_SKILL_DIR}: ${m[1]}`)
+  for (const m of src.matchAll(/(?:^|[`\s])node\s+((?!\$\{CLAUDE_SKILL_DIR\})[^\s`]*scripts\/[a-z-]+\.ts)/gm)) {
+    add(where, `script path is missing \${CLAUDE_SKILL_DIR}: ${group(m, 1)}`)
   }
 }
 
 // --- skill map ----------------------------------------------------------------
 
 for (const [job, spec] of Object.entries(map.jobs)) {
-  if (!fs.existsSync(path.join(BASE, spec.playbook))) add(`skill-map.json:${job}`, `playbook does not exist: ${spec.playbook}`)
-  for (const name of [...(spec.prefer || []), ...(spec.also || [])]) {
+  if (!fs.existsSync(path.join(BASE, spec.playbook))) {
+    add(`skill-map.json:${job}`, `playbook does not exist: ${spec.playbook}`)
+  }
+  for (const name of [...(spec.prefer ?? []), ...(spec.also ?? [])]) {
     if (!map.registry[name]) add(`skill-map.json:${job}`, `routes to "${name}" but the registry has no entry for it`)
   }
-  for (const name of spec.also || []) {
-    if (!spec.triggers?.[name]) add(`skill-map.json:${job}`, `"${name}" is conditional but has no trigger, so nothing says when to load it`)
+  for (const name of spec.also ?? []) {
+    if (!spec.triggers?.[name]) {
+      add(`skill-map.json:${job}`, `"${name}" is conditional but has no trigger, so nothing says when to load it`)
+    }
   }
-  for (const id of spec.external || []) {
+  for (const id of spec.external ?? []) {
     if (!map.external[id]) add(`skill-map.json:${job}`, `external id "${id}" is undefined`)
   }
 }
+
+// The registry carries a couple of `_`-prefixed prose notes alongside the real
+// entries; those are documentation for a human reader, not routable skills.
+const isEntry = (v: RegistryEntry | string): v is RegistryEntry => typeof v === 'object' && v !== null
+
 for (const [name, reg] of Object.entries(map.registry)) {
   if (name.startsWith('_')) continue
-  if (!reg.degrade) add(`skill-map.json:registry`, `"${name}" has no degrade note — a machine without it gets no fallback`)
-  if (!reg.source && !reg.install && !reg.find) add(`skill-map.json:registry`, `"${name}" has no source, install or find — nothing tells the user where to get it`)
+  if (!isEntry(reg)) {
+    add('skill-map.json:registry', `"${name}" is not an object — a registry entry must carry degrade and a source/install/find`)
+    continue
+  }
+  if (!reg.degrade) add('skill-map.json:registry', `"${name}" has no degrade note — a machine without it gets no fallback`)
+  if (!reg.source && !reg.install && !reg.find) {
+    add('skill-map.json:registry', `"${name}" has no source, install or find — nothing tells the user where to get it`)
+  }
 }
 
 // --- report -------------------------------------------------------------------
@@ -145,11 +190,11 @@ if (asJson) {
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n')
 } else {
   const L = [
-    `factory doctor`,
+    'factory doctor',
     `${summary.playbooks} playbooks, ${summary.scripts} scripts, ${summary.jobs} jobs, ${summary.registryEntries} registry entries`,
     '',
   ]
-  if (!problems.length) L.push('no problems found')
+  if (problems.length === 0) L.push('no problems found')
   else {
     L.push(`${problems.length} problem(s):`)
     for (const p of problems) L.push(`  ${p.where}: ${p.msg}`)

@@ -11,9 +11,9 @@ They then tried the obvious fix: an `anti_slop` **prompt**, a well-written instr
 ## The three runs
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline        # record this project's line
-node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs check           # compare, verdict, exit 1 on breach
-node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs scan --top 20   # ranked callables, no verdict, exit 0
+node ${CLAUDE_SKILL_DIR}/scripts/slop.ts baseline        # record this project's line
+node ${CLAUDE_SKILL_DIR}/scripts/slop.ts check           # compare, verdict, exit 1 on breach
+node ${CLAUDE_SKILL_DIR}/scripts/slop.ts scan --top 20   # ranked callables, no verdict, exit 0
 ```
 
 | Run | When exactly | Failure it prevents |
@@ -77,11 +77,11 @@ If the output carries the `small sample` note (under 20 files or under 30 functi
 4. Re-run `check`.
 5. Still breaching and you judge the remainder acceptable: record a ruling with its cost-if-wrong and continue (Law 8). A parked session costs the user their day; a recorded wrong ruling costs rework they can see.
 
-Record it with `state.mjs note decision "<one line>"` — the ledger is written through the script, not by hand (Law 7) — and put the full block in that slice's `evidence/slice-<n>.md`:
+Record it with `state.ts note decision "<one line>"` — the ledger is written through the script, not by hand (Law 7) — and put the full block in that slice's `evidence/slice-<n>.md`:
 
 ```
 CONSOLIDATION PASS — <slug>, slice <n>
-  trigger:  <breach line copied verbatim from `slop.mjs check`>
+  trigger:  <breach line copied verbatim from `slop.ts check`>
   targets:  <fnName  file.ts:120  CC 41 → 9>
             <fnName  file.ts:288  CC 21 → 7>
   deleted:  <N> lines
@@ -145,7 +145,7 @@ GitClear's 211M-line study: duplicated blocks grew 4–8×, while "moved lines" 
 
 Before a slice closes in [implement.md](implement.md), before `verify`/`review` reports, and on every `loop` pass — all five, checkable:
 
-- [ ] `slop.mjs check` run **in this message**, with no path arguments, exit 0 — or exit 1 with a consolidation pass completed and its deleted-line count in `evidence/slice-<n>.md`, or a ruling recorded accepting the remaining breach.
+- [ ] `slop.ts check` run **in this message**, with no path arguments, exit 0 — or exit 1 with a consolidation pass completed and its deleted-line count in `evidence/slice-<n>.md`, or a ruling recorded accepting the remaining breach.
 - [ ] Every row of the eye-only checklist checked against this session's diff, including the *none*-detector rows.
 - [ ] Lines added **and** lines deleted both stated in the slice report.
 - [ ] No `placeholder`, `rest-unchanged` or `any-cast` hit introduced by this session.

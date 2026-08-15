@@ -1,0 +1,38 @@
+{
+  "// why": [
+    "Node 23.6+ runs .ts directly by stripping types — no build step, no dist/, no",
+    "chance of the shipped JS drifting from the source. The price is that only",
+    "erasable syntax is allowed: no enums, no namespaces, no parameter properties.",
+    "erasableSyntaxOnly makes tsc enforce that, so a construct that would crash at",
+    "runtime fails typecheck instead of failing in front of a user.",
+    "",
+    "Everything else here is strictness. The point of the conversion was to make",
+    "mistakes visible, so the checks that catch real defects — unchecked indexing,",
+    "optional properties treated as present, unused values — are all on."
+  ],
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["scripts/**/*.ts", "test/**/*.ts"]
+}

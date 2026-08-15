@@ -106,7 +106,7 @@ it disappears on reboot, which is right for scaffolding. Two opt-outs, both expl
 
 | | |
 |---|---|
-| `state.mjs init --in-project` | use `<project>/.factory` instead, for work that spans weeks and belongs in the repo |
+| `state.ts init --in-project` | use `<project>/.factory` instead, for work that spans weeks and belongs in the repo |
 | `FACTORY_HOME=/some/dir` | keep every workspace under a directory of your own |
 
 A `FACTORY.md` committed at the project root always wins over the workspace copy, so a team can keep
@@ -149,8 +149,8 @@ The correct response to a full context window is always to hand off, never to co
 ### Slope control, not adjectives
 
 ```bash
-node scripts/slop.mjs baseline    # record this project's structural starting line
-node scripts/slop.mjs check       # exit 1 if drift crosses the threshold
+node scripts/slop.ts baseline    # record this project's structural starting line
+node scripts/slop.ts check       # exit 1 if drift crosses the threshold
 ```
 
 Two metrics from SlopCodeBench:
@@ -171,7 +171,7 @@ score as evidence that the code works — that is what `verify` is for.
 ### The skill tree
 
 ```bash
-node scripts/skills.mjs resolve design-ui
+node scripts/skills.ts resolve design-ui
 ```
 
 For any job kind, this reports the playbook to read, which skills are installed here, which apply
@@ -192,9 +192,9 @@ guessed repository link is worse than none.
 ## Tests
 
 ```bash
-node test/run.mjs          # everything
-node test/run.mjs slop     # one group: state | skills | slop | hooks | context | doctor
-node scripts/doctor.mjs    # is the skill itself still coherent?
+node test/run.ts          # everything
+node test/run.ts slop     # one group: state | skills | slop | hooks | context | doctor
+node scripts/doctor.ts    # is the skill itself still coherent?
 ```
 
 `doctor` checks the skill the way the skill asks you to check your code — with a command rather than
@@ -204,7 +204,7 @@ trigger saying when to load it, a description that reads like a workflow summary
 no exit condition. Run it after editing anything here.
 
 No framework and no dependencies; each test builds a throwaway project under the system temp
-directory. The suite exists because Law 1 applies to this skill's own code — the lexer in `slop.mjs`
+directory. The suite exists because Law 1 applies to this skill's own code — the lexer in `slop.ts`
 is asserted against braces hidden in template literals, block comments and regex literals, and the
 Stop gate is asserted against a real git diff, a test file, an unborn repo, empty stdin, and the
 re-entry guard that stops a blocking hook trapping a session in a loop.

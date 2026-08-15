@@ -2,19 +2,19 @@
 
 `init` writes `FACTORY.md`, the durable charter at the project root: what we are building, for whom, what "working" means, which commands prove it, and what is already settled. It exists so a fresh session cannot re-litigate a decision the user already made — context is a cache, the filesystem is the truth.
 
-| `context.mjs` said | State | Do |
+| `context.ts` said | State | Do |
 |---|---|---|
-| `NOT_INITIALIZED` | no the workspace, no charter | run `state.mjs init`, then all six steps below |
-| `NO_CHARTER` | the workspace exists, `FACTORY.md` missing | steps 1–6, skipping `state.mjs init` |
+| `NOT_INITIALIZED` | no the workspace, no charter | run `state.ts init`, then all six steps below |
+| `NO_CHARTER` | the workspace exists, `FACTORY.md` missing | steps 1–6, skipping `state.ts init` |
 | neither | charter exists | **amend only** — see the last section |
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs init   # creates <workspace>/, state.json, ledger.md; {"already":true} is success
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts init   # creates <workspace>/, state.json, ledger.md; {"already":true} is success
 ```
 
 ## Step 1 — Read before you ask
 
-Every question the repo already answered spends patience you will need for the one question only the user can answer. `context.mjs --brief` has already handed you the project markers, the `scripts` list, and any `testCommand` / `buildCommand` / `lintCommand` it could infer. Start from that, do not re-derive it, and fill the rest:
+Every question the repo already answered spends patience you will need for the one question only the user can answer. `context.ts --brief` has already handed you the project markers, the `scripts` list, and any `testCommand` / `buildCommand` / `lintCommand` it could infer. Start from that, do not re-derive it, and fill the rest:
 
 | Read | Gives you |
 |---|---|
@@ -110,7 +110,7 @@ Run every command in that table now, read the whole output, and record the exit 
 **A missing or failing test command is a blocking gap, not a footnote** — without it there is no evidence layer at all. Do not start repairing the suite here: init is not a repair phase and a fix begun now runs unplanned and unverified. Instead:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "no working test command — verification is manual until slice 1"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note risk "no working test command — verification is manual until slice 1"
 ```
 
 record it under Known gaps, tell the user plainly, and carry it into planning: with no test command, establishing one is slice 1 and nothing else is ([slice.md](slice.md)). Same for `run` — if the app cannot be started, [verify.md](verify.md) has no live surface and evidence degrades to reading the diff.
@@ -118,16 +118,16 @@ record it under Known gaps, tell the user plainly, and carry it into planning: w
 ## Step 5 — Baseline the drift metrics
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline
+node ${CLAUDE_SKILL_DIR}/scripts/slop.ts baseline
 ```
 
-Writes this project's own erosion and verbosity numbers to `<workspace>/slop-baseline.json`. The delta from the day the factory arrived is what matters, not the absolute score — a legacy codebase can start above the agent-drift reference points and be perfectly healthy. Skip this and the first `slop.mjs check` has nothing to compare against, so drift becomes unmeasurable exactly when it starts. Report both numbers in one line against their reference points — maintained human repos sit near erosion 0.31 / verbosity 0.11, agent trajectories drift to 0.68 / 0.32 — plus the limits later phases enforce: erosion +0.05 or verbosity +0.03 above this baseline is a breach ([anti-slop.md](anti-slop.md)). Do not editorialise beyond that.
+Writes this project's own erosion and verbosity numbers to `<workspace>/slop-baseline.json`. The delta from the day the factory arrived is what matters, not the absolute score — a legacy codebase can start above the agent-drift reference points and be perfectly healthy. Skip this and the first `slop.ts check` has nothing to compare against, so drift becomes unmeasurable exactly when it starts. Report both numbers in one line against their reference points — maintained human repos sit near erosion 0.31 / verbosity 0.11, agent trajectories drift to 0.68 / 0.32 — plus the limits later phases enforce: erosion +0.05 or verbosity +0.03 above this baseline is a breach ([anti-slop.md](anti-slop.md)). Do not editorialise beyond that.
 
 ## Step 6 — Offer hooks
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs status
-node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs on --verify "<the confirmed test command>"   # only after the user agrees
+node ${CLAUDE_SKILL_DIR}/scripts/hooks.ts status
+node ${CLAUDE_SKILL_DIR}/scripts/hooks.ts on --verify "<the confirmed test command>"   # only after the user agrees
 ```
 
 Offer the Stop-gate once, wired to the test command you just proved. A skill defines the procedure; a hook enforces the result — "run the tests before committing" in a charter is a suggestion competing against more recent tokens, while a gate firing on `Stop` is a fact. Do not install it silently: it edits the user's `settings.json`, which is theirs to authorise (Law 8). A decline is recorded and is not a blocker. Detail lives in [hooks.md](hooks.md).
@@ -137,11 +137,11 @@ Offer the Stop-gate once, wired to the test command you just proved. A skill def
 Append decisions to the ledger as they are made, never as a closing summary a truncated session never writes (Law 7):
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "stack: <x>, settled at init"
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "<gap>"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note decision "stack: <x>, settled at init"
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts note risk "<gap>"
 ```
 
-Run `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs doctor` and give the user one line naming the routed skills missing here with the install line for each — init is the cheapest moment to close those gaps ([skill-map.md](skill-map.md)). Never invent a repository URL to fill one. Then name the next step from the actual state: `research` for anything touching code you have not read ([research.md](research.md)), `product` for a greenfield build ([product.md](product.md)), or the scoped command the original request implied. Do not auto-start it — the user chose `init`, and a phase they did not ask for spends their tokens on your guess.
+Run `node ${CLAUDE_SKILL_DIR}/scripts/skills.ts doctor` and give the user one line naming the routed skills missing here with the install line for each — init is the cheapest moment to close those gaps ([skill-map.md](skill-map.md)). Never invent a repository URL to fill one. Then name the next step from the actual state: `research` for anything touching code you have not read ([research.md](research.md)), `product` for a greenfield build ([product.md](product.md)), or the scoped command the original request implied. Do not auto-start it — the user chose `init`, and a phase they did not ask for spends their tokens on your guess.
 
 ## Exit condition — all six true before any phase begins
 
@@ -154,6 +154,6 @@ Run `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs doctor` and give the user one l
 
 ## Amending an existing charter, and what init never does
 
-Never rewrite a live `FACTORY.md` wholesale: replacing settled decisions is indistinguishable from re-litigating them, the exact failure this file exists to prevent. Ask which sections are stale, edit only those, leave every confirmed field byte-identical, and note it with `state.mjs note decision "charter: <section> updated — <why>"`. Two things you may amend unasked because they are records rather than decisions: re-confirming a Verify gate row you just executed, and closing a resolved Known gap.
+Never rewrite a live `FACTORY.md` wholesale: replacing settled decisions is indistinguishable from re-litigating them, the exact failure this file exists to prevent. Ask which sections are stale, edit only those, leave every confirmed field byte-identical, and note it with `state.ts note decision "charter: <section> updated — <why>"`. Two things you may amend unasked because they are records rather than decisions: re-confirming a Verify gate row you just executed, and closing a resolved Known gap.
 
 Init does not write a PRD, choose an architecture, design an interface, start research, or repair a broken build. It does not invent users, benchmarks, customers or deployment claims — an unconfirmed audience written here becomes the target every later phase optimises for.

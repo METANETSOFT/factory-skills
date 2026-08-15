@@ -29,17 +29,17 @@ Watch behaviour, not feeling. Each of these is observable in the transcript, cos
 
 Degradation starts long before the window is full. HumanLayer's ACE-FCA targets **40–60% context utilisation**, not 90% — compacting at 95% bakes already-degraded output into whatever you carry forward.
 
-**The moment any signal fires:** stop opening new fronts. If the slice you are on is one verified command from done, run that command, record the evidence, then hand off. If it is not, `state.mjs note unfinished "<what exists, what is missing, where>"` and hand off with the half-slice named (Law 3). After a signal you do not start a new slice, a new file, or a new investigation — that decision is already made and is not yours to re-open.
+**The moment any signal fires:** stop opening new fronts. If the slice you are on is one verified command from done, run that command, record the evidence, then hand off. If it is not, `state.ts note unfinished "<what exists, what is missing, where>"` and hand off with the half-slice named (Law 3). After a signal you do not start a new slice, a new file, or a new investigation — that decision is already made and is not yours to re-open.
 
 ## The gauges that are real
 
-`state.mjs` counts what you actually did, and every tick returns the verdict, so you never poll for it:
+`state.ts` counts what you actually did, and every tick returns the verdict, so you never poll for it:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs tick <read|edit|slice|fix|subagent>
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts tick <read|edit|slice|fix|subagent>
 ```
 
-The response carries `counts`, `caps` and `pressure`; `pressure.level` is `ok`, `warn` or `handoff`, and `pressure.directive` is the sentence to obey. Tick as the event happens — an untracked session has no gauge at all, only the intuition the section above disqualified. `state.mjs show` reports the same `pressure` block at any time. `context.mjs --brief` does **not**: it emits `RESUME`, `OPEN_ITEMS` and git directives, and no pressure reading. Do not claim a pressure level you have not read from `state.mjs`.
+The response carries `counts`, `caps` and `pressure`; `pressure.level` is `ok`, `warn` or `handoff`, and `pressure.directive` is the sentence to obey. Tick as the event happens — an untracked session has no gauge at all, only the intuition the section above disqualified. `state.ts show` reports the same `pressure` block at any time. `context.ts --brief` does **not**: it emits `RESUME`, `OPEN_ITEMS` and git directives, and no pressure reading. Do not claim a pressure level you have not read from `state.ts`.
 
 | Counter | `FINISH_CURRENT_SLICE` at | `HANDOFF_NOW` at | What the cap encodes |
 |---|---|---|---|
@@ -49,17 +49,17 @@ The response carries `counts`, `caps` and `pressure`; `pressure.level` is `ok`, 
 | `read` | 63 | 90 | The window is materially consumed by file content |
 | `subagent` | 9 | 12 | Delegation past this is theatre, at 3–10× tokens |
 
-`slice` has no warning band: the third completed slice trips `HANDOFF_NOW` directly. Do not wait for a warning that will never arrive. Note also that `state.mjs slice <done>/<total>` increments the `slice` counter itself — do not also `tick slice` for the same slice, or the cap trips a full slice early.
+`slice` has no warning band: the third completed slice trips `HANDOFF_NOW` directly. Do not wait for a warning that will never arrive. Note also that `state.ts slice <done>/<total>` increments the `slice` counter itself — do not also `tick slice` for the same slice, or the cap trips a full slice early.
 
 - **`FINISH_CURRENT_SLICE`** — complete the slice you are on, verify it, hand off. Do not begin another.
-- **`HANDOFF_NOW`** — do not start new work and do not compress remaining work to fit. Run `state.mjs handoff`, write the file completely, stop.
+- **`HANDOFF_NOW`** — do not start new work and do not compress remaining work to fit. Run `state.ts handoff`, write the file completely, stop.
 
 `HANDOFF_NOW` is a directive, not advice: pushing to a fourth slice buys one slice at the price of the session's remaining judgement.
 
 Two operational traps, both verified against the script:
 
-- **`state.mjs handoff` zeroes the session counters.** Running it and then continuing clears the gauge while the degraded context sits exactly where it was — worse than having no gauge. Handoff means handoff: write the file, tell the user to `/clear`, stop.
-- **`state.mjs handoff` exits 1 with `no active work to hand off`** when `state.mjs start` was never run. Do not improvise a file path. Run `state.mjs start <slug> --title "..."`, then `state.mjs phase <phase>` to restore the phase — `start` resets phase to `research` and zeroes counters — then hand off.
+- **`state.ts handoff` zeroes the session counters.** Running it and then continuing clears the gauge while the degraded context sits exactly where it was — worse than having no gauge. Handoff means handoff: write the file, tell the user to `/clear`, stop.
+- **`state.ts handoff` exits 1 with `no active work to hand off`** when `state.ts start` was never run. Do not improvise a file path. Run `state.ts start <slug> --title "..."`, then `state.ts phase <phase>` to restore the phase — `start` resets phase to `research` and zeroes counters — then hand off.
 
 ## Reset, do not compact
 
@@ -67,7 +67,7 @@ Prefer a fresh session started from a written handoff over in-place compaction. 
 
 ## The handoff file
 
-`state.mjs handoff` returns `handoffFile` — `<workspace>/work/<slug>/HANDOFF.md` — plus `handoffNumber`, `phase`, `slice`, `openItems` and the closing session counts. Fill this schema exactly. It is the current front, not a history: the ledger keeps history, and each handoff replaces the last.
+`state.ts handoff` returns `handoffFile` — `<workspace>/work/<slug>/HANDOFF.md` — plus `handoffNumber`, `phase`, `slice`, `openItems` and the closing session counts. Fill this schema exactly. It is the current front, not a history: the ledger keeps history, and each handoff replaces the last.
 
 ```markdown
 # HANDOFF — <work title>
@@ -100,7 +100,7 @@ caps, not on a failure." Never leave this heading empty. Dead hypotheses are the
 a debugging handoff carries, because the next session's default is to try them again.>
 
 ## Open items
-<Verbatim from `state.mjs show` → openItems, numbers kept so `state.mjs resolve <n>` still works.>
+<Verbatim from `state.ts show` → openItems, numbers kept so `state.ts resolve <n>` still works.>
 - #<n> <kind>: <text>
 
 ## Next action — exact
@@ -119,7 +119,7 @@ Only `note unfinished` and `note risk` create numbered entries in `openItems`; `
 
 **Do not replace this schema with a freeform summary of the session.** Anthropic's finding on why model-authored summaries fail is that "the model didn't know what it didn't know": a narrative keeps what was salient at the end and silently drops what was decided at the beginning — the approach, the ruled-out paths, the reason the obvious thing does not work. That is exactly the material the next session needs and cannot reconstruct. A schema forces the fields a narrative would omit.
 
-`skills.mjs resolve handoff` names the bundled `handoff` skill for gathering the material, and `obsidian-memory` when a fact is durable beyond this project. Gather with them; write **this** schema regardless. If either is unavailable, write the file by hand and say out loud that you are on the degraded path.
+`skills.ts resolve handoff` names the bundled `handoff` skill for gathering the material, and `obsidian-memory` when a fact is durable beyond this project. Gather with them; write **this** schema regardless. If either is unavailable, write the file by hand and say out loud that you are on the degraded path.
 
 Two more rules, each paid for by a real failure:
 
@@ -128,19 +128,19 @@ Two more rules, each paid for by a real failure:
 
 ## Resuming
 
-`context.mjs --brief` emits `[RESUME]` and names `<workdir>/HANDOFF.md`. Read it in full before touching anything: earlier phases already happened and their output is on disk, and re-running them spends the user's money rediscovering what you already knew. `--brief` reports the open-item *count* only — run `state.mjs show` for the numbered list.
+`context.ts --brief` emits `[RESUME]` and names `<workdir>/HANDOFF.md`. Read it in full before touching anything: earlier phases already happened and their output is on disk, and re-running them spends the user's money rediscovering what you already knew. `--brief` reports the open-item *count* only — run `state.ts show` for the numbered list.
 
-Then run exactly one cheap re-check before building on it: `git status`, and the command in the Proof column of the final completed step. A previous session's evidence column is a claim, and Law 1 applies across session boundaries as much as within one. If the re-check disagrees with the handoff, `state.mjs note risk "<the disagreement>"` and trust the command.
+Then run exactly one cheap re-check before building on it: `git status`, and the command in the Proof column of the final completed step. A previous session's evidence column is a claim, and Law 1 applies across session boundaries as much as within one. If the re-check disagrees with the handoff, `state.ts note risk "<the disagreement>"` and trust the command.
 
 ## Exit condition
 
 The handoff is done when all of these are true. Each is checkable without judgement:
 
-- [ ] `state.mjs show` → `artifacts["HANDOFF.md"].present` is `true`.
+- [ ] `state.ts show` → `artifacts["HANDOFF.md"].present` is `true`.
 - [ ] All seven headings present; no heading followed by an empty body.
 - [ ] Every row of "Steps completed" has a non-empty Proof cell naming a command or a commit sha.
 - [ ] "Next action" is a single action a fresh session can execute without asking the user a question.
-- [ ] Open items match `state.mjs show` → `openItems` exactly, numbers included.
+- [ ] Open items match `state.ts show` → `openItems` exactly, numbers included.
 - [ ] Every file, branch or command the file refers to appears in it as a literal path, sha or command string — no descriptions standing in for identifiers.
 - [ ] The user has been told to `/clear` and say "factory resume".
 

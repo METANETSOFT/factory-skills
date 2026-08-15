@@ -30,20 +30,38 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { findRoot, paths as workspacePaths } from './lib/workspace.mjs'
+import { findRoot, paths as workspacePaths } from './lib/workspace.ts'
+import type { FunctionMetric, RuleHit, ScanResult, SlopBaseline } from './lib/types.ts'
 
 const argv = process.argv.slice(2)
-const has = (f) => argv.includes(`--${f}`)
-const flagVal = (f, d) => {
+const has = (f: string): boolean => argv.includes(`--${f}`)
+const flagVal = (f: string, d: string): string => {
+  // Both spellings, and a trailing `--flag` with nothing after it falls back to
+  // the default: `--top=5` used to be silently ignored, and a bare `--top`
+  // returned undefined.
+  const eq = argv.find((a) => a.startsWith(`--${f}=`))
+  if (eq !== undefined) return eq.slice(f.length + 3)
   const i = argv.indexOf(`--${f}`)
-  return i === -1 ? d : argv[i + 1]
+  if (i === -1) return d
+  return argv[i + 1] ?? d
 }
 const positional = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1] === '--top'))
 
 const cmd = positional[0] || 'scan'
 const targets = positional.slice(1)
 
-const EXT = {
+// How many callables the report lists. Validated here rather than at the point
+// of use: `--top` with no number reached slice() as NaN, slice(0, NaN) returns
+// [], and the heaviest-callables section then vanished from the report with exit
+// 0 — while `check` still told the reader to consolidate "the functions below".
+const topN = ((): number => {
+  const n = Number(flagVal('top', '10'))
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 10
+})()
+
+type Lang = 'c' | 'py'
+
+const EXT: Record<string, Lang> = {
   '.ts': 'c', '.tsx': 'c', '.js': 'c', '.jsx': 'c', '.mjs': 'c', '.cjs': 'c',
   '.go': 'c', '.java': 'c', '.c': 'c', '.h': 'c', '.cc': 'c', '.cpp': 'c', '.cs': 'c',
   '.rs': 'c', '.swift': 'c', '.kt': 'c', '.php': 'c', '.scala': 'c',
@@ -55,13 +73,13 @@ const SKIP_DIR = new Set([
   'coverage', '__pycache__', '.venv', 'venv', '.factory', '.cache', 'bin', 'obj',
 ])
 
-const isTestPath = (p) => /(^|[\/.])(test|tests|spec|__tests__|e2e|fixtures?)([\/.]|$)/i.test(p)
+const isTestPath = (p: string): boolean => /(^|[\/.])(test|tests|spec|__tests__|e2e|fixtures?)([\/.]|$)/i.test(p)
 
 const ROOT = findRoot()
 const WS = workspacePaths(ROOT)
 
-function walk(dir, acc = []) {
-  let entries = []
+function walk(dir: string, acc: string[] = []): string[] {
+  let entries
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
   } catch {
@@ -88,9 +106,9 @@ function walk(dir, acc = []) {
   return acc
 }
 
-function collectFiles() {
+function collectFiles(): string[] {
   const roots = targets.length ? targets : [ROOT]
-  const out = []
+  const out: string[] = []
   for (const t of roots) {
     const p = path.resolve(t)
     if (!fs.existsSync(p)) continue
@@ -104,73 +122,107 @@ function collectFiles() {
 
 // --- lexing ------------------------------------------------------------------
 
+const WORD_CHAR = /[A-Za-z0-9_$]/
+
 // A cursor over the source that writes a parallel, code-only buffer of exactly
 // the same length. Blanked characters become spaces, newlines are preserved, so
 // every downstream line and column still lines up with the original file.
 class Blanker {
-  constructor(src) {
+  src: string
+  out: string[]
+  i: number
+  lastKept: string | null
+  /** Last whole identifier or keyword kept, for the `return /re/` case. */
+  lastKeptWord: string
+  inWord: boolean
+
+  constructor(src: string) {
     this.src = src
-    this.out = new Array(src.length)
+    this.out = new Array<string>(src.length)
     this.i = 0
     this.lastKept = null // last non-space character actually kept, for regex disambiguation
+    this.lastKeptWord = ''
+    this.inWord = false
   }
-  get done() {
+  get done(): boolean {
     return this.i >= this.src.length
   }
-  at(k = 0) {
+  at(k = 0): string | undefined {
     return this.src[this.i + k]
   }
-  keep(n = 1) {
+  keep(n = 1): void {
     while (n-- > 0 && !this.done) {
-      const c = this.src[this.i]
+      const c = this.at()
+      if (c === undefined) return
       this.out[this.i] = c
-      if (!/\s/.test(c)) this.lastKept = c
+      const space = /\s/.test(c)
+      if (!space) this.lastKept = c
+      // The word is tracked as well as the character because `return /re/` ends
+      // in `n`, which is not punctuation — see REGEX_MAY_FOLLOW_WORD.
+      if (WORD_CHAR.test(c)) {
+        this.lastKeptWord = this.inWord ? this.lastKeptWord + c : c
+        this.inWord = true
+      } else {
+        // Whitespace ends the word without erasing it; anything else means the
+        // next `/` follows punctuation, not a keyword.
+        if (!space) this.lastKeptWord = ''
+        this.inWord = false
+      }
       this.i++
     }
   }
-  blank(n = 1) {
+  blank(n = 1): void {
     while (n-- > 0 && !this.done) {
-      const c = this.src[this.i]
+      const c = this.at()
+      if (c === undefined) return
       this.out[this.i] = c === '\n' ? '\n' : ' '
       this.i++
     }
   }
-  blankWhile(pred) {
+  blankWhile(pred: () => boolean): void {
     while (!this.done && pred()) this.blank()
   }
   /** Blank an escape pair so a backslash cannot hide the closing delimiter. */
-  blankEscape() {
+  blankEscape(): boolean {
     if (this.at() === '\\') {
       this.blank(2)
       return true
     }
     return false
   }
-  result() {
+  result(): string {
     return this.out.join('')
   }
 }
 
-const blankLineComment = (b) => b.blankWhile(() => b.at() !== '\n')
+const blankLineComment = (b: Blanker): void => b.blankWhile(() => b.at() !== '\n')
 
-function blankBlockComment(b) {
+function blankBlockComment(b: Blanker): void {
   b.blank(2)
   while (!b.done && !(b.at() === '*' && b.at(1) === '/')) b.blank()
   b.blank(2)
 }
 
-/** A single- or double-quoted string. `bounded` stops at a newline (Python). */
-function blankQuoted(b, quote, bounded) {
+/** A single- or double-quoted string. Always stops at a newline.
+ *
+ *  Every language in EXT forbids a raw newline inside one — multi-line text is a
+ *  template literal or a triple-quoted string, and those are handled separately.
+ *  Running unbounded meant a single stray quote (an apostrophe in JSX text, or a
+ *  quote inside a regex the lexer had already mistaken for division) blanked the
+ *  file from there to EOF, so every function after it disappeared from the
+ *  measurement and `check` passed a tree it had not actually measured. There is
+ *  deliberately no flag to turn the bound off again. */
+function blankQuoted(b: Blanker, quote: string): void {
   b.blank()
   while (!b.done && b.at() !== quote) {
-    if (bounded && b.at() === '\n') return
+    if (b.at() === '\n') return
     if (b.blankEscape()) continue
     b.blank()
   }
   b.blank()
 }
 
-function blankTripleQuoted(b, quote) {
+function blankTripleQuoted(b: Blanker, quote: string): void {
   const close = quote.repeat(3)
   b.blank(3)
   while (!b.done && b.src.slice(b.i, b.i + 3) !== close) b.blank()
@@ -178,7 +230,7 @@ function blankTripleQuoted(b, quote) {
 }
 
 /** A template literal: the text is blanked, the code inside ${...} is kept. */
-function blankTemplate(b) {
+function blankTemplate(b: Blanker): void {
   b.blank()
   let depth = 0
   while (!b.done) {
@@ -202,7 +254,7 @@ function blankTemplate(b) {
 }
 
 /** A regex literal, including its character classes and trailing flags. */
-function blankRegex(b) {
+function blankRegex(b: Blanker): void {
   b.blank()
   let inClass = false
   while (!b.done && b.at() !== '\n') {
@@ -222,7 +274,19 @@ function blankRegex(b) {
 // suite pins it with a regex containing braces.
 const REGEX_MAY_FOLLOW = new Set('(,=:[!&|?{};+-*%~^<>'.split(''))
 
-function blankPython(b) {
+// The same rule for keywords, which the character test cannot see: `return /re/`
+// ends in `n`, so the `/` was read as division, the regex body was read as code,
+// and a quote inside it (`/^'[^']*'$/`) opened a string that ran to the end of
+// the file. A bare identifier, a number, `)` or `]` stay deliberately on the
+// division path — `)` is genuinely ambiguous (`(a+b)/c` against
+// `if (x) /re/.test(y)`), and for a trend instrument silently blanking real code
+// is the worse error.
+const REGEX_MAY_FOLLOW_WORD = new Set([
+  'return', 'typeof', 'case', 'in', 'of', 'instanceof', 'new', 'delete',
+  'void', 'await', 'yield', 'do', 'else', 'throw',
+])
+
+function blankPython(b: Blanker): void {
   while (!b.done) {
     const c = b.at()
     if (c === '#') {
@@ -230,21 +294,21 @@ function blankPython(b) {
     } else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) {
       blankTripleQuoted(b, c)
     } else if (c === '"' || c === "'") {
-      blankQuoted(b, c, true)
+      blankQuoted(b, c)
     } else {
       b.keep()
     }
   }
 }
 
-function blankCLike(b) {
+function blankCLike(b: Blanker): void {
   while (!b.done) {
     const c = b.at()
     if (c === '/' && b.at(1) === '/') blankLineComment(b)
     else if (c === '/' && b.at(1) === '*') blankBlockComment(b)
-    else if (c === '"' || c === "'") blankQuoted(b, c, false)
+    else if (c === '"' || c === "'") blankQuoted(b, c)
     else if (c === '`') blankTemplate(b)
-    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept))) blankRegex(b)
+    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept) || REGEX_MAY_FOLLOW_WORD.has(b.lastKeptWord))) blankRegex(b)
     else b.keep()
   }
 }
@@ -257,14 +321,14 @@ function blankCLike(b) {
 // block comment that spans lines, so one unbalanced brace inside either makes a
 // function body run to the end of the file. That failure inflates a function's
 // complexity into the hundreds and makes the erosion number a lie.
-function blankNonCode(src, lang) {
+function blankNonCode(src: string, lang: Lang): string {
   const b = new Blanker(src)
   if (lang === 'py') blankPython(b)
   else blankCLike(b)
   return b.result()
 }
 
-function isComment(line, lang) {
+function isComment(line: string, lang: Lang): boolean {
   const t = line.trim()
   if (lang === 'py') return t.startsWith('#')
   return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('*/')
@@ -275,7 +339,7 @@ const BRANCH_PY = /\b(if|elif|for|while|except|and|or)\b/g
 
 // Takes lines from the BLANKED source, so a branch keyword inside a string or a
 // comment cannot inflate the count.
-function complexityOf(bodyLines, lang) {
+function complexityOf(bodyLines: string[], lang: Lang): { cc: number; sloc: number } {
   let cc = 1
   let sloc = 0
   for (const l of bodyLines) {
@@ -294,19 +358,26 @@ const FN_PY = /^(\s*)(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/
 
 /** Python bodies are bounded by indentation: the block ends at the first
  *  non-blank line indented no further than the `def`. */
-function pythonFunctions(file, lines) {
-  const fns = []
+function pythonFunctions(file: string, lines: string[]): FunctionMetric[] {
+  const fns: FunctionMetric[] = []
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(FN_PY)
+    const decl = lines[i]
+    if (decl === undefined) continue
+    const m = decl.match(FN_PY)
     if (!m) continue
-    const indent = m[1].length
-    const body = []
+    const name = m[2]
+    if (name === undefined) continue
+    // Group 1 is the leading whitespace, so an absent capture means column zero.
+    const indent = m[1]?.length ?? 0
+    const body: string[] = []
     for (let j = i + 1; j < lines.length; j++) {
-      if (lines[j].trim() && lines[j].search(/\S/) <= indent) break
-      body.push(lines[j])
+      const l = lines[j]
+      if (l === undefined) break
+      if (l.trim() && l.search(/\S/) <= indent) break
+      body.push(l)
     }
     const { cc, sloc } = complexityOf(body, 'py')
-    fns.push({ name: m[2], file, line: i + 1, cc, sloc })
+    fns.push({ name, file, line: i + 1, cc, sloc })
   }
   return fns
 }
@@ -318,11 +389,17 @@ function pythonFunctions(file, lines) {
  *  swallow the NEXT function's braces and report its complexity here — which is
  *  how a one-line helper ends up reported at CC 30.
  */
-function findBodyStart(lines, declLine, match) {
+function findBodyStart(lines: string[], declLine: number, match: RegExpMatchArray): { line: number; col: number } | null {
   const LOOKAHEAD = 4
+  // A match from String.prototype.match always carries both; the defaults keep
+  // the search starting at the head of the declaration line rather than throwing.
+  const matchAt = match.index ?? 0
+  const matchLen = match[0]?.length ?? 0
   for (let j = declLine; j < Math.min(declLine + LOOKAHEAD, lines.length); j++) {
-    const from = j === declLine ? Math.max(match.index + match[0].length - 1, 0) : 0
-    const seg = lines[j].slice(from)
+    const line = lines[j]
+    if (line === undefined) return null
+    const from = j === declLine ? Math.max(matchAt + matchLen - 1, 0) : 0
+    const seg = line.slice(from)
     const brace = seg.indexOf('{')
     const semi = seg.indexOf(';')
     if (brace !== -1 && (semi === -1 || brace < semi)) return { line: j, col: from + brace }
@@ -337,29 +414,33 @@ function findBodyStart(lines, declLine, match) {
 /** Read a brace-balanced body. Returns null when the braces never balance,
  *  which means the lexer lost track on minified or exotic source. Skipping is
  *  correct there: a fabricated number is worse than a missing one. */
-function readBracedBody(lines, start) {
+function readBracedBody(lines: string[], start: { line: number; col: number }): { body: string[]; endLine: number } | null {
   let depth = 0
   let started = false
-  const body = []
+  const body: string[] = []
   for (let j = start.line; j < lines.length; j++) {
+    const line = lines[j]
+    if (line === undefined) break
     const from = j === start.line ? start.col : 0
-    for (let k = from; k < lines[j].length; k++) {
-      const ch = lines[j][k]
+    for (let k = from; k < line.length; k++) {
+      const ch = line[k]
       if (ch === '{') {
         depth++
         started = true
       } else if (ch === '}') depth--
     }
-    if (j > start.line) body.push(lines[j])
+    if (j > start.line) body.push(line)
     if (started && depth <= 0) return { body, endLine: j }
   }
   return null
 }
 
-function cLikeFunctions(file, lines) {
-  const fns = []
+function cLikeFunctions(file: string, lines: string[]): FunctionMetric[] {
+  const fns: FunctionMetric[] = []
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(FN_C)
+    const decl = lines[i]
+    if (decl === undefined) continue
+    const m = decl.match(FN_C)
     if (!m) continue
     const name = m[1] || m[2] || m[3] || m[4]
     if (!name) continue
@@ -374,7 +455,7 @@ function cLikeFunctions(file, lines) {
   return fns
 }
 
-function functionsIn(file, blankedLines) {
+function functionsIn(file: string, blankedLines: string[]): FunctionMetric[] {
   const lang = EXT[path.extname(file)]
   return lang === 'py' ? pythonFunctions(file, blankedLines) : cLikeFunctions(file, blankedLines)
 }
@@ -394,8 +475,22 @@ const RULES = [
   { id: 'sleep-bandaid', re: /setTimeout\s*\(\s*[^,]*,\s*\d{3,}\s*\)|time\.sleep\(\s*\d+/, why: 'timing band-aid in place of a fix' },
 ]
 
-function analyseFile(file) {
+interface FileAnalysis {
+  file: string
+  lang: Lang
+  /** Code lines: non-blank and not a comment. Reported, and baselined. */
+  loc: number
+  /** Every non-blank line — the denominator verbosity is measured against. */
+  nonBlank: number
+  lines: string[]
+  flagged: Set<number>
+  hits: RuleHit[]
+  fns: FunctionMetric[]
+}
+
+function analyseFile(file: string): FileAnalysis | null {
   const lang = EXT[path.extname(file)]
+  if (!lang) return null
   let src
   try {
     src = fs.readFileSync(file, 'utf8')
@@ -404,11 +499,12 @@ function analyseFile(file) {
   }
   const lines = src.split('\n')
   const blankedLines = blankNonCode(src, lang).split('\n')
+  const nonBlank = lines.filter((l) => l.trim()).length
   const loc = lines.filter((l) => l.trim() && !isComment(l, lang)).length
   if (!loc) return null
 
-  const flagged = new Set()
-  const hits = []
+  const flagged = new Set<number>()
+  const hits: RuleHit[] = []
   lines.forEach((l, i) => {
     for (const r of RULES) {
       if (r.re.test(l)) {
@@ -419,30 +515,40 @@ function analyseFile(file) {
     }
   })
 
-  return { file, lang, loc, lines, flagged, hits, fns: functionsIn(file, blankedLines) }
+  return { file, lang, loc, nonBlank, lines, flagged, hits, fns: functionsIn(file, blankedLines) }
 }
 
 // Duplicate detection: normalised 6-line shingles seen more than once anywhere
 // in the scanned set. Catches the copy-paste growth GitClear measured (duplicated
 // blocks up 4–8× since 2020, consolidation edits down from 25% to under 10%).
 const SHINGLE = 6
-function duplicateLines(files) {
-  const seen = new Map()
-  const dupPerFile = new Map()
+function duplicateLines(files: FileAnalysis[]): Map<string, Set<number>> {
+  const seen = new Map<string, { file: string; i: number }>()
+  const dupPerFile = new Map<string, Set<number>>()
   for (const f of files) {
-    const norm = f.lines.map((l) => l.replace(/\s+/g, ' ').trim())
+    // Comment lines are emptied before shingling, because a repeated licence
+    // header or generated banner is not duplicated CODE — the window guard below
+    // then discards any window that is wholly or partly comment. Left in, ten
+    // copies of a nine-line header put verbosity at 1.000 on a codebase with no
+    // duplicate logic in it, and deleting real code only made the number worse.
+    const norm = f.lines.map((l) => (isComment(l, f.lang) ? '' : l.replace(/\s+/g, ' ').trim()))
     for (let i = 0; i + SHINGLE <= norm.length; i++) {
       const win = norm.slice(i, i + SHINGLE)
       if (win.filter(Boolean).length < SHINGLE) continue
       const key = win.join('')
       if (key.length < 80) continue
-      if (!seen.has(key)) {
+      const first = seen.get(key)
+      if (!first) {
         seen.set(key, { file: f.file, i })
         continue
       }
-      for (const [file, start] of [[f.file, i], [seen.get(key).file, seen.get(key).i]]) {
-        if (!dupPerFile.has(file)) dupPerFile.set(file, new Set())
-        const set = dupPerFile.get(file)
+      const spans: Array<[string, number]> = [[f.file, i], [first.file, first.i]]
+      for (const [file, start] of spans) {
+        let set = dupPerFile.get(file)
+        if (!set) {
+          set = new Set<number>()
+          dupPerFile.set(file, set)
+        }
         for (let k = 0; k < SHINGLE; k++) set.add(start + k)
       }
     }
@@ -450,21 +556,26 @@ function duplicateLines(files) {
   return dupPerFile
 }
 
-function scan() {
-  const files = collectFiles().map(analyseFile).filter(Boolean)
+function scan(): ScanResult {
+  // flatMap rather than map().filter(Boolean): a file that cannot be read, or
+  // whose extension is not in EXT, drops out here without the filter having to
+  // claim to the checker that it removed the nulls.
+  const files = collectFiles().flatMap((f) => analyseFile(f) ?? [])
   if (!files.length) return { ok: false, error: 'no source files found', root: ROOT }
 
   const dup = duplicateLines(files)
   let loc = 0
+  let nonBlank = 0
   let noisy = 0
   let massTotal = 0
   let massHigh = 0
-  const allFns = []
-  const allHits = []
+  const allFns: Array<FunctionMetric & { mass: number }> = []
+  const allHits: RuleHit[] = []
 
   for (const f of files) {
     loc += f.loc
-    const d = dup.get(f.file) || new Set()
+    nonBlank += f.nonBlank
+    const d = dup.get(f.file) ?? new Set<number>()
     const union = new Set([...f.flagged, ...d])
     noisy += union.size
     allHits.push(...f.hits)
@@ -478,11 +589,18 @@ function scan() {
 
   allFns.sort((a, b) => b.mass - a.mass)
   const erosion = massTotal ? massHigh / massTotal : 0
-  const verbosity = loc ? Math.min(noisy / loc, 1) : 0
+  // Verbosity is a fraction, so both sides have to count the same lines. LOC
+  // deliberately excludes comments, but the flagged set includes comment-only
+  // rules (placeholder, narration, emoji), so noisy/loc could exceed 1 and the
+  // clamp then hid a malformed ratio rather than bounding a real one — a
+  // repeated licence header read as 1.000 on a project with nothing duplicated
+  // in it. Measured against every non-blank line, the numerator is a subset of
+  // the denominator again. LOC is still what gets reported and baselined.
+  const verbosity = nonBlank ? Math.min(noisy / nonBlank, 1) : 0
   const high = allFns.filter((f) => f.cc > 10)
 
-  const byRule = {}
-  for (const h of allHits) byRule[h.rule] = (byRule[h.rule] || 0) + 1
+  const byRule: Record<string, number> = {}
+  for (const h of allHits) byRule[h.rule] = (byRule[h.rule] ?? 0) + 1
 
   return {
     ok: true,
@@ -502,7 +620,7 @@ function scan() {
     highComplexityCount: high.length,
     maxComplexity: allFns.length ? allFns.reduce((m, f) => Math.max(m, f.cc), 0) : 0,
     reference: { humanRepos: { erosion: 0.31, verbosity: 0.11 }, agentDrift: { erosion: 0.68, verbosity: 0.32 } },
-    worst: allFns.slice(0, Number(flagVal('top', 10))).map((f) => ({
+    worst: allFns.slice(0, topN).map((f) => ({
       name: f.name,
       at: `${path.relative(ROOT, f.file)}:${f.line}`,
       cc: f.cc,
@@ -515,7 +633,41 @@ function scan() {
 
 const BASELINE = WS.baseline
 
-function report(r) {
+/** The four measured fields, or null if any is missing or not a finite number. */
+function baselineNumbers(fields: Map<string, unknown>): Omit<SlopBaseline, 'at'> | null {
+  const n = (k: string): number => {
+    const v = fields.get(k)
+    return typeof v === 'number' && Number.isFinite(v) ? v : NaN
+  }
+  const erosion = n('erosion')
+  const verbosity = n('verbosity')
+  const loc = n('loc')
+  const files = n('files')
+  if ([erosion, verbosity, loc, files].some(Number.isNaN)) return null
+  return { erosion, verbosity, loc, files }
+}
+
+/** The recorded baseline, or null when there is not a usable one.
+ *
+ *  The fields are checked rather than trusted: a truncated or hand-edited file
+ *  would otherwise yield NaN deltas, and `NaN > limit` is false for every limit,
+ *  so `check` would report a comparison it never actually made. */
+function readBaseline(file: string): SlopBaseline | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+  if (typeof raw !== 'object' || raw === null) return null
+  const fields = new Map<string, unknown>(Object.entries(raw))
+  const at = fields.get('at')
+  const numbers = baselineNumbers(fields)
+  if (typeof at !== 'string' || !numbers) return null
+  return { at, ...numbers }
+}
+
+function report(r: ScanResult): void {
   if (has('json')) {
     process.stdout.write(JSON.stringify(r, null, 2) + '\n')
     return
@@ -524,8 +676,8 @@ function report(r) {
     process.stdout.write(`slop: ${r.error}\n`)
     return
   }
-  const L = []
-  const scope = (r.scanned || [r.root]).map((s) => path.relative(r.root, s) || '.').join(' ')
+  const L: string[] = []
+  const scope = r.scanned.map((s) => path.relative(r.root, s) || '.').join(' ')
   L.push(`slop scan @ ${r.root}${scope === '.' ? '' : `  (scope: ${scope})`}`)
   L.push(`${r.files} files, ${r.loc} LOC`)
   if (scope !== '.') L.push('scoped scan — do not compare this against a baseline taken over the whole project')
@@ -550,15 +702,15 @@ function report(r) {
       L.push('consolidation pass over the functions below and report lines DELETED, not added.')
     }
   }
-  if (r.worst?.length) {
+  if (r.worst.length) {
     L.push('')
     L.push('heaviest callables (complexity mass):')
     for (const w of r.worst) L.push(`  CC ${String(w.cc).padStart(3)}  ${String(w.sloc).padStart(4)} sloc  ${w.name}  ${w.at}`)
   }
-  if (Object.keys(r.ruleHits || {}).length) {
+  if (Object.keys(r.ruleHits).length) {
     L.push('')
     L.push('flagged patterns: ' + Object.entries(r.ruleHits).map(([k, v]) => `${k}×${v}`).join('  '))
-    for (const e of (r.examples || []).slice(0, 6)) L.push(`  ${e.at}  [${e.rule}] ${e.why}`)
+    for (const e of r.examples.slice(0, 6)) L.push(`  ${e.at}  [${e.rule}] ${e.why}`)
   }
   process.stdout.write(L.join('\n') + '\n')
 }
@@ -584,13 +736,8 @@ switch (cmd) {
       report(r)
       process.exit(1)
     }
-    let base = null
-    if (fs.existsSync(BASELINE)) {
-      try {
-        base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'))
-      } catch {}
-    }
-    const breaches = []
+    const base = fs.existsSync(BASELINE) ? readBaseline(BASELINE) : null
+    const breaches: string[] = []
     if (base) {
       r.delta = {
         baselineAt: base.at,
