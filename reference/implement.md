@@ -45,8 +45,8 @@ SLICE <n> of <total>: <the slice line from PLAN.md, verbatim>
 
 You have no prior context. Everything you need is below or in the files named.
 
-READ FIRST: .factory/work/<slug>/PROGRAM-DESIGN.md — §Interfaces, §Call stack, §Tests
-             .factory/work/<slug>/PLAN.md — slice <n> only
+READ FIRST: <workspace>/work/<slug>/PROGRAM-DESIGN.md — §Interfaces, §Call stack, §Tests
+             <workspace>/work/<slug>/PLAN.md — slice <n> only
 
 BUILD: <the one behaviour, end to end — route to storage to response, thin>
 FILES YOU MAY TOUCH: <explicit list>. Outside it, stop and report instead of creating.
@@ -60,7 +60,7 @@ TDD: write the failing test first; run it; show it fail. Then write only enough 
   that one test. Run it; show it pass. Commit. Repeat per test.
 PROVE IT: <the exact command, e.g. `npm test -- thing.spec.ts` and `curl -s localhost:3000/things`>
 
-WRITE YOUR RESULT to .factory/work/<slug>/evidence/slice-<n>.md using the skeleton in the
+WRITE YOUR RESULT to <workspace>/work/<slug>/evidence/slice-<n>.md using the skeleton in the
 factory's implement playbook, then report back exactly these fields:
   files changed | lines added | lines deleted | tests added | commands run + verbatim output
   | anything you could not do and why | any interface that did not survive contact
@@ -73,7 +73,7 @@ The closing two lines are load-bearing: anti-anxiety reinforcement is measurably
 
 ## The slice result file
 
-The subagent writes `.factory/work/<slug>/evidence/slice-<n>.md`. Prose in a return value is discarded when the subagent ends; a file survives into the next session, into [verify.md](verify.md), and into the handoff.
+The subagent writes `<workspace>/work/<slug>/evidence/slice-<n>.md`. Prose in a return value is discarded when the subagent ends; a file survives into the next session, into [verify.md](verify.md), and into the handoff.
 
 ```markdown
 # Slice <n>: <title>

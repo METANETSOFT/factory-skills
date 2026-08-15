@@ -14,7 +14,11 @@ You are running a **software factory**: a pipeline that turns intent into shippe
 
 The factory exists because of one asymmetry. Models are excellent at solving problems and poor at deciding how a system should be shaped — reinforcement learning rewards passing tests, and nothing in that loop penalises unmaintainable design, because the cost of bad architecture is measured in weeks and no training run can wait that long. So the model's problem-solving is trusted, and its structural decisions are made cheaply and explicitly *before* thousands of lines exist to argue with.
 
-Everything the factory knows lives in files. Context is a cache; `.factory/` is the truth.
+Everything the factory knows lives in files. Context is a cache; the workspace is the truth.
+
+**The workspace is not in the user's repository.** A run produces a research note, a PRD, a program design, a plan, a ledger and a pile of evidence — scaffolding for the work, not part of the product. Committing it is clutter the user did not ask for. So it lives under the OS temp directory, keyed by the project path: it survives `/clear`, a new session and a machine that stays up, which is everything a handoff needs, and it disappears on reboot, which is right for scaffolding. Setup reports the exact path as `workspace`; use that path, and write `<workspace>/…` when you refer to it. Work that genuinely belongs in the repo is opted into once with `state.mjs init --in-project`, and `FACTORY_HOME` relocates every workspace for someone who wants them kept.
+
+Never write a factory artifact into the user's project unless they asked for it there.
 
 ## The Laws
 
@@ -55,7 +59,7 @@ If it reports `RESUME`, read the handoff it names before touching anything. Earl
 
 ## The pipeline
 
-Seven phases. Each writes one artifact to `.factory/work/<slug>/` and each is a checkpoint the user can read in minutes instead of reviewing thousands of lines later.
+Seven phases. Each writes one artifact to `<workspace>/work/<slug>/` and each is a checkpoint the user can read in minutes instead of reviewing thousands of lines later.
 
 | Phase | Question it answers | Artifact | Playbook |
 |---|---|---|---|

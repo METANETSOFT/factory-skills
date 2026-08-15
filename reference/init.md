@@ -2,19 +2,15 @@
 
 `init` writes `FACTORY.md`, the durable charter at the project root: what we are building, for whom, what "working" means, which commands prove it, and what is already settled. It exists so a fresh session cannot re-litigate a decision the user already made — context is a cache, the filesystem is the truth.
 
-Which case you are in decides the work:
-
 | `context.mjs` said | State | Do |
 |---|---|---|
-| `NOT_INITIALIZED` | no `.factory/`, no charter | run `state.mjs init`, then all six steps below |
-| `NO_CHARTER` | `.factory/` exists, `FACTORY.md` missing | steps 1–6, skipping `state.mjs init` |
+| `NOT_INITIALIZED` | no the workspace, no charter | run `state.mjs init`, then all six steps below |
+| `NO_CHARTER` | the workspace exists, `FACTORY.md` missing | steps 1–6, skipping `state.mjs init` |
 | neither | charter exists | **amend only** — see the last section |
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs init      # creates .factory/, state.json, ledger.md
+node ${CLAUDE_SKILL_DIR}/scripts/state.mjs init   # creates <workspace>/, state.json, ledger.md; {"already":true} is success
 ```
-
-`{"already": true}` is success, not a failure — a second `init` never overwrites state.
 
 ## Step 1 — Read before you ask
 
@@ -46,9 +42,7 @@ Never ask for anything you can execute instead — the test command is read and 
 
 ## Step 3 — Write FACTORY.md
 
-Project root. Confirmed facts and named gaps only — omit a section rather than fill it with plausible prose, because a fabricated line here is copied forward by every future session and nothing in the pipeline re-checks it.
-
-**Law 10 binds hardest in this file.** Name the variable, never the value: `DATABASE_URL (see .env)`, never the connection string. A charter is read by every session and committed to git.
+Project root. Confirmed facts and named gaps only — omit a section rather than fill it with plausible prose, because a fabricated line here is copied forward by every future session and nothing in the pipeline re-checks it. **Law 10 binds hardest in this file:** name the variable, never the value — `DATABASE_URL (see .env)`, never the connection string. A charter is committed to git and read by every session.
 
 ```markdown
 # <Product name>
@@ -60,9 +54,8 @@ Project root. Confirmed facts and named gaps only — omit a section rather than
 [Primary user, their situation, the job they are doing. Secondary audiences only when confirmed.]
 
 ## Definition of done
-[The measurable outcome that decides success. A threshold beats an adjective: "p95 import under
-4s for a 10k-row file", not "fast". If the only bar available is judged, name the judge and the
-criteria it grades against.]
+[The measurable outcome that decides success. A threshold beats an adjective: "p95 import under 4s
+for a 10k-row file", not "fast". If the only bar available is judged, name the judge and its criteria.]
 
 ## Stack
 | Layer | Choice | Version (from lockfile) | Settled because |
@@ -100,17 +93,15 @@ Settled. Not to be re-argued. Each one names what enforces it.
 |---|---|
 | Architectural decisions | `docs/adr/NNNN-<slug>.md` |
 | Environment and third-party facts | `docs/external/<topic>.md` |
-| Rulings, risks, unfinished work | `.factory/ledger.md` |
-| Per-feature artifacts | `.factory/work/<slug>/` |
+| Rulings, risks, unfinished work | `<workspace>/ledger.md` |
+| Per-feature artifacts | `<workspace>/work/<slug>/` |
 
 ## Known gaps
-[Everything inferred rather than confirmed, and anything the verify gate cannot yet prove, each
-with its cost-if-wrong. Empty is a valid answer; vague is not.]
+[Everything inferred rather than confirmed, and anything the verify gate cannot prove, each with
+its cost-if-wrong. Empty is a valid answer; vague is not.]
 ```
 
-Adjust those numbers to the repo's existing style where it has one — a limit half the codebase already violates is ignored on day one. Keep **Enforced by** filled: a written convention lowers the *starting* level of slop by roughly a third and then drift resumes at the same rate, so anything that can become a lint rule, a type or a hook becomes one in slice 1. The deletion clause exists because agents add and never consolidate — across 211M measured lines duplicated blocks grew 4–8× while consolidating "moved lines" fell from 25% of changes to under 10%.
-
-Definition of done is the back pressure the whole pipeline pulls against: [verify.md](verify.md) grades against it and [loop.md](loop.md) terminates on it. A deterministic target moves mountains; "make it good" gets you a victory declaration.
+Adjust those numbers to the repo's existing style where it has one — a limit half the codebase already violates is ignored on day one. Keep **Enforced by** filled: a written convention lowers the *starting* level of slop by roughly a third and then drift resumes at the same rate, so anything that can become a lint rule, a type or a hook becomes one in slice 1. The deletion clause exists because agents add and never consolidate — across 211M measured lines duplicated blocks grew 4–8× while consolidating "moved lines" fell from 25% of changes to under 10%. Definition of done is the back pressure the rest of the pipeline pulls against: [verify.md](verify.md) grades against it and [loop.md](loop.md) terminates on it. A deterministic target moves mountains; "make it good" earns you a victory declaration.
 
 ## Step 4 — Prove the verify gate
 
@@ -122,7 +113,7 @@ Run every command in that table now, read the whole output, and record the exit 
 node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "no working test command — verification is manual until slice 1"
 ```
 
-record it under Known gaps, tell the user plainly, and carry it into planning: with no test command, establishing one is slice 1 and nothing else is ([slice.md](slice.md)). The same holds for `run` — if the app cannot be started, [verify.md](verify.md) has no live surface and evidence degrades to reading the diff.
+record it under Known gaps, tell the user plainly, and carry it into planning: with no test command, establishing one is slice 1 and nothing else is ([slice.md](slice.md)). Same for `run` — if the app cannot be started, [verify.md](verify.md) has no live surface and evidence degrades to reading the diff.
 
 ## Step 5 — Baseline the drift metrics
 
@@ -130,23 +121,16 @@ record it under Known gaps, tell the user plainly, and carry it into planning: w
 node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline
 ```
 
-Writes this project's own erosion and verbosity numbers to `.factory/slop-baseline.json`. The delta from the day the factory arrived is what matters, not the absolute score — a legacy codebase can start above the agent-drift reference points and be perfectly healthy. Skip this and the first `slop.mjs check` has nothing to compare against, so drift becomes unmeasurable exactly when it starts.
-
-Report both numbers in one line against their reference points — maintained human repos sit near erosion 0.31 / verbosity 0.11, agent trajectories drift to 0.68 / 0.32 — plus the limits later phases enforce: erosion +0.05 or verbosity +0.03 above this baseline is a breach ([anti-slop.md](anti-slop.md)). Do not editorialise beyond that.
+Writes this project's own erosion and verbosity numbers to `<workspace>/slop-baseline.json`. The delta from the day the factory arrived is what matters, not the absolute score — a legacy codebase can start above the agent-drift reference points and be perfectly healthy. Skip this and the first `slop.mjs check` has nothing to compare against, so drift becomes unmeasurable exactly when it starts. Report both numbers in one line against their reference points — maintained human repos sit near erosion 0.31 / verbosity 0.11, agent trajectories drift to 0.68 / 0.32 — plus the limits later phases enforce: erosion +0.05 or verbosity +0.03 above this baseline is a breach ([anti-slop.md](anti-slop.md)). Do not editorialise beyond that.
 
 ## Step 6 — Offer hooks
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs status
+node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs on --verify "<the confirmed test command>"   # only after the user agrees
 ```
 
-Offer once to turn the Stop-gate on, wired to the test command you just proved:
-
-```bash
-node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs on --verify "<the confirmed test command>"
-```
-
-A skill defines the procedure; a hook enforces the result. "Run the tests before committing" in a charter is a suggestion competing against more recent tokens; a gate that fires on `Stop` is a fact. Do not install it silently — it edits the user's `settings.json`, which is theirs to authorise (Law 8). A decline is recorded and is not a blocker. Detail lives in [hooks.md](hooks.md).
+Offer the Stop-gate once, wired to the test command you just proved. A skill defines the procedure; a hook enforces the result — "run the tests before committing" in a charter is a suggestion competing against more recent tokens, while a gate firing on `Stop` is a fact. Do not install it silently: it edits the user's `settings.json`, which is theirs to authorise (Law 8). A decline is recorded and is not a blocker. Detail lives in [hooks.md](hooks.md).
 
 ## Wrap up
 
@@ -157,25 +141,19 @@ node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "stack: <x>, settled at
 node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note risk "<gap>"
 ```
 
-Run `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs doctor` and give the user one line naming the routed skills missing here with the install line for each — init is the cheapest moment to close those gaps ([skill-map.md](skill-map.md)). Never invent a repository URL to fill one.
+Run `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs doctor` and give the user one line naming the routed skills missing here with the install line for each — init is the cheapest moment to close those gaps ([skill-map.md](skill-map.md)). Never invent a repository URL to fill one. Then name the next step from the actual state: `research` for anything touching code you have not read ([research.md](research.md)), `product` for a greenfield build ([product.md](product.md)), or the scoped command the original request implied. Do not auto-start it — the user chose `init`, and a phase they did not ask for spends their tokens on your guess.
 
-Then name the next step from the actual state: `research` for anything touching code you have not read ([research.md](research.md)), `product` for a greenfield build ([product.md](product.md)), or the scoped command the user's original request implied. Do not auto-start it — the user chose `init`, and a phase they did not ask for spends their tokens on your guess.
-
-## Exit condition
-
-All six true before any phase begins:
+## Exit condition — all six true before any phase begins
 
 1. `FACTORY.md` exists at the project root with real content under What this is, Who it is for, Definition of done, Stack, Verify gate, Conventions, Out of scope and Where durable facts live — no `<...>` or `[...]` template text surviving.
 2. Every command in the Verify gate ran in this session with its exit code recorded, or its absence is written under Known gaps and noted as a risk.
 3. Definition of done states a threshold something can be measured against, or names the judge and its criteria.
 4. Every Conventions row has an entry in **Enforced by**.
-5. `.factory/slop-baseline.json` exists, and both numbers were reported to the user.
+5. `<workspace>/slop-baseline.json` exists, and both numbers were reported to the user.
 6. `FACTORY.md` contains no secret value — grep it for keys, tokens and connection strings before you finish.
 
-## Amending an existing charter
+## Amending an existing charter, and what init never does
 
-Never rewrite a live `FACTORY.md` wholesale: replacing settled decisions is indistinguishable from re-litigating them, which is the failure this file exists to prevent. Ask which sections are stale, edit only those, and leave every confirmed field byte-identical. Two exceptions you may amend without asking, because they are records rather than decisions: re-confirming a Verify gate row you just executed, and closing a Known gap that is now resolved. Note the amendment with `state.mjs note decision "charter: <section> updated — <why>"`.
+Never rewrite a live `FACTORY.md` wholesale: replacing settled decisions is indistinguishable from re-litigating them, the exact failure this file exists to prevent. Ask which sections are stale, edit only those, leave every confirmed field byte-identical, and note it with `state.mjs note decision "charter: <section> updated — <why>"`. Two things you may amend unasked because they are records rather than decisions: re-confirming a Verify gate row you just executed, and closing a resolved Known gap.
 
-## What init does not do
-
-It does not write a PRD, choose an architecture, design an interface, start research, or fix a broken build. It does not invent users, benchmarks, customers or deployment claims — an unconfirmed audience written here becomes the target of every later phase.
+Init does not write a PRD, choose an architecture, design an interface, start research, or repair a broken build. It does not invent users, benchmarks, customers or deployment claims — an unconfirmed audience written here becomes the target every later phase optimises for.

@@ -1,6 +1,6 @@
 # architecture
 
-Phase 3 answers one question: **how do the pieces fit — which modules exist, what flows between them, and where does this change land in the system that is already here?** It produces `.factory/work/<slug>/ARCHITECTURE.md`: the map at module scale, with every new endpoint, table, query and seam named.
+Phase 3 answers one question: **how do the pieces fit — which modules exist, what flows between them, and where does this change land in the system that is already here?** It produces `<workspace>/work/<slug>/ARCHITECTURE.md`: the map at module scale, with every new endpoint, table, query and seam named.
 
 This file names the modules and their seams. [program-design.md](program-design.md) specifies what the code inside them looks like — call stack, file paths, signatures, tests. Hold that boundary in both directions: an architecture that starts writing function signatures has spent the next phase's budget in the wrong session, and an architecture that stops at "we will add a service" leaves the expensive decision to be made mid-implementation at 70% context, where Law 5 says it is no longer cheap to change. Architecture runs on `main`: no worktree, nothing here writes code.
 
@@ -15,7 +15,7 @@ Re-read the inputs (Step 1) → reuse before addition (Step 2) → place the cha
 
 ## Step 1 — Re-read the inputs; do not design from memory
 
-Open `.factory/work/<slug>/RESEARCH.md` and `PRD.md` now, in this session, even if you wrote them an hour ago. Facts lose the attention competition against more recent tokens, and a design built on a remembered version of the research is exactly how a misread early fact becomes an architecture several PRs later. Two sections carry most of the design: **What varies and what is fixed** is your entire seam budget — nothing outside that table has earned an interface — and **How information flows** is the incumbent path your change edits, not a greenfield sketch drawn beside it.
+Open `<workspace>/work/<slug>/RESEARCH.md` and `PRD.md` now, in this session, even if you wrote them an hour ago. Facts lose the attention competition against more recent tokens, and a design built on a remembered version of the research is exactly how a misread early fact becomes an architecture several PRs later. Two sections carry most of the design: **What varies and what is fixed** is your entire seam budget — nothing outside that table has earned an interface — and **How information flows** is the incumbent path your change edits, not a greenfield sketch drawn beside it.
 
 If the PRD's success metric cannot be observed anywhere in the architecture you are about to draw, either it has no instrumentation point or the design misses the thing being measured. Fix it here and `state.mjs note ruling` it; a metric with nowhere to be read from becomes an unverifiable claim at [verify.md](verify.md). Capability claims about any named service — ordering guarantees, delivery semantics, quotas, hard limits — resolve through Context7, never memory: `npx ctx7@latest library "<name>" "<question>"` then `docs <id> "<question>"`. An architecture built on a guarantee the service does not make is discovered during implementation, when the fix is a redesign rather than a paragraph.
 
@@ -148,7 +148,7 @@ Then `state.mjs note decision "ADR-000N: <one line>"` so the session record poin
 
 All six must be true before [program-design.md](program-design.md) begins. Then report in a few lines — the shape of the change, what is reused rather than added, the seams and what varies behind each, any ADR written — because a page of architecture is reviewable in minutes and the thousands of lines built on it are not.
 
-1. `.factory/work/<slug>/ARCHITECTURE.md` exists with every section above and no bracketed placeholders left in.
+1. `<workspace>/work/<slug>/ARCHITECTURE.md` exists with every section above and no bracketed placeholders left in.
 2. Every module in the Modules table is marked New / Changed / Unchanged, and every New one carries a deletion-test verdict naming the callers that make it earn its keep.
 3. Every seam names something that varies today with its adapters listed, or a variation the PRD requires on day one. A seam with one adapter and no named second is deleted before this phase ends.
 4. Every new table lists at least one query it must serve; every new endpoint lists auth and error cases.

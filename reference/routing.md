@@ -18,7 +18,7 @@ node ${CLAUDE_SKILL_DIR}/scripts/state.mjs show
 
 It writes nothing and returns exactly what the tables below need: `artifacts` (present/bytes for `RESEARCH.md` `PRD.md` `ARCHITECTURE.md` `PROGRAM-DESIGN.md` `PLAN.md` `HANDOFF.md`), `openItems` with their text, `nextPhase`, and `pressure`. Without it the "only if the artifact exists" gates below are guesses, and a recommendation to advance a phase whose input was never written is how a plan gets built on an architecture that does not exist.
 
-**Ceiling: two Bash calls, one optional Read of `.factory/slop-baseline.json`, zero source files, zero subagents.** Do not run `slop.mjs check`, do not grep the codebase, do not open `PLAN.md` "to see where we got to". A menu that costs a repo scan is a phase in disguise; the user asked what to do, not for it to be done.
+**Ceiling: two Bash calls, one optional Read of `<workspace>/slop-baseline.json`, zero source files, zero subagents.** Do not run `slop.mjs check`, do not grep the codebase, do not open `PLAN.md` "to see where we got to". A menu that costs a repo scan is a phase in disguise; the user asked what to do, not for it to be done.
 
 ## Precedence
 
@@ -34,9 +34,9 @@ Several signals fire at once. Take the first that applies as pick 1, then the ne
 | 6 | `DIRTY_DEFAULT_BRANCH` | branching before any implement command | the branch name and the dirty file count |
 | 7 | `NO_CHARTER` with state present | `/factory init` | `FACTORY.md` is missing, so the next fresh session re-litigates settled decisions |
 | 8 | `NO_TEST_COMMAND` and phase is `plan` or later | agreeing a verify command with the user | verify has nothing to run, so its evidence would be prose |
-| 9 | phase is `plan` or `implement` and `.factory/slop-baseline.json` is absent | `node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline` | drift is unmeasurable without a line to compare against |
+| 9 | phase is `plan` or `implement` and `<workspace>/slop-baseline.json` is absent | `node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline` | drift is unmeasurable without a line to compare against |
 
-Rank 5 recommends `/factory research <topic>`; **do not run `state.mjs start` yourself** — [research.md](research.md) opens with it, and running it here is a mutation this turn is not allowed to make. Rank 9's check is a single Read of `.factory/slop-baseline.json`; a not-found error *is* the signal. See [anti-slop.md](anti-slop.md).
+Rank 5 recommends `/factory research <topic>`; **do not run `state.mjs start` yourself** — [research.md](research.md) opens with it, and running it here is a mutation this turn is not allowed to make. Rank 9's check is a single Read of `<workspace>/slop-baseline.json`; a not-found error *is* the signal. See [anti-slop.md](anti-slop.md).
 
 ### Session pressure is carried spend, not yours
 

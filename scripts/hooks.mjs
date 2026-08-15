@@ -24,6 +24,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execSync, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { findRoot, paths as workspacePaths } from './lib/workspace.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SELF = path.join(HERE, 'hooks.mjs')
@@ -35,18 +36,10 @@ const flag = (n, d = null) => {
   return i === -1 ? d : argv[i + 1]
 }
 
-function findRoot(start = process.cwd()) {
-  let dir = path.resolve(start)
-  for (;;) {
-    if (fs.existsSync(path.join(dir, '.factory')) || fs.existsSync(path.join(dir, '.git'))) return dir
-    const up = path.dirname(dir)
-    if (up === dir) return path.resolve(start)
-    dir = up
-  }
-}
 const ROOT = findRoot()
+const WS = workspacePaths(ROOT)
 const SETTINGS = path.join(ROOT, '.claude', 'settings.json')
-const CONFIG = path.join(ROOT, '.factory', 'config.json')
+const CONFIG = WS.config
 const MARK = 'factory:stop-gate'
 
 const readJson = (f, d = null) => {

@@ -11,6 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { resolve as resolveWorkspace } from './lib/workspace.mjs'
 
 const argv = process.argv.slice(2)
 const flag = (n, d = null) => {
@@ -18,19 +19,9 @@ const flag = (n, d = null) => {
   return i === -1 ? d : argv[i + 1]
 }
 
-function findRoot(start = process.cwd()) {
-  let dir = path.resolve(start)
-  for (;;) {
-    if (fs.existsSync(path.join(dir, '.factory'))) return dir
-    if (fs.existsSync(path.join(dir, '.git'))) return dir
-    const up = path.dirname(dir)
-    if (up === dir) return path.resolve(start)
-    dir = up
-  }
-}
-
-const ROOT = path.resolve(flag('root') || findRoot())
-const DIR = path.join(ROOT, '.factory')
+const P = resolveWorkspace(flag('root'))
+const ROOT = P.root
+const DIR = P.ws
 
 const sh = (cmd, args) => {
   try {
@@ -93,7 +84,7 @@ function projectShape() {
 }
 
 function stateSnapshot() {
-  const f = path.join(DIR, 'state.json')
+  const f = P.state
   if (!fs.existsSync(f)) return null
   try {
     return JSON.parse(fs.readFileSync(f, 'utf8'))
@@ -103,12 +94,12 @@ function stateSnapshot() {
 }
 
 function tailLedger(n = 14) {
-  const f = path.join(DIR, 'ledger.md')
+  const f = P.ledger
   if (!fs.existsSync(f)) return []
   return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).slice(-n)
 }
 
-const charterPath = path.join(ROOT, 'FACTORY.md')
+const charterPath = P.charter
 const hasCharter = fs.existsSync(charterPath)
 const s = stateSnapshot()
 const git = gitSignals()
@@ -164,6 +155,8 @@ if (!shape.testCommand && shape.markers.includes('node')) {
 
 const report = {
   root: ROOT,
+  workspace: DIR,
+  workspaceInProject: P.inProject,
   charter: hasCharter ? charterPath : null,
   initialized: !!s,
   phase: s?.phase ?? null,
@@ -180,6 +173,7 @@ const report = {
 if (argv.includes('--brief')) {
   const lines = [
     `factory @ ${ROOT}`,
+    `workspace: ${DIR}${P.inProject ? ' (in project)' : ''}`,
     `phase: ${report.phase ?? '—'}   work: ${report.work?.title ?? '—'}   slice: ${report.slice ? `${report.slice.done}/${report.slice.total}` : '—'}`,
     `git: ${git.repo ? `${git.branch}${git.dirty ? ` (${git.changedCount} dirty)` : ''}` : 'no repo'}`,
     '',

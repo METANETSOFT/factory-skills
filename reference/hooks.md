@@ -18,7 +18,7 @@ node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs on [--verify "npm test"]
 node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs off
 ```
 
-`on` writes **one** `Stop`-event gate into `<project>/.claude/settings.json`, carrying a `factory:stop-gate` marker so `off` removes exactly that entry and nothing a user or another tool installed. `--verify` additionally records a command in `.factory/config.json` and runs it at the gate.
+`on` writes **one** `Stop`-event gate into `<project>/.claude/settings.json`, carrying a `factory:stop-gate` marker so `off` removes exactly that entry and nothing a user or another tool installed. `--verify` additionally records a command in `<workspace>/config.json` and runs it at the gate.
 
 | The gate checks | Law | Failure it prevents |
 |---|---|---|

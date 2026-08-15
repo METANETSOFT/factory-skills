@@ -67,7 +67,7 @@ Prefer a fresh session started from a written handoff over in-place compaction. 
 
 ## The handoff file
 
-`state.mjs handoff` returns `handoffFile` — `.factory/work/<slug>/HANDOFF.md` — plus `handoffNumber`, `phase`, `slice`, `openItems` and the closing session counts. Fill this schema exactly. It is the current front, not a history: the ledger keeps history, and each handoff replaces the last.
+`state.mjs handoff` returns `handoffFile` — `<workspace>/work/<slug>/HANDOFF.md` — plus `handoffNumber`, `phase`, `slice`, `openItems` and the closing session counts. Fill this schema exactly. It is the current front, not a history: the ledger keeps history, and each handoff replaces the last.
 
 ```markdown
 # HANDOFF — <work title>
@@ -81,7 +81,7 @@ context must be able to recognise completion from this paragraph alone. Not "con
 
 ## Approach being taken
 <The chosen shape and why — the ruling, not the menu of options. Point at the artifacts holding the
-detail: .factory/work/<slug>/PROGRAM-DESIGN.md, PLAN.md. If the approach changed mid-session, say
+detail: <workspace>/work/<slug>/PROGRAM-DESIGN.md, PLAN.md. If the approach changed mid-session, say
 what it was, what it is now, and what forced the change. Rulings live in the ledger and never appear
 in openItems, so an approach change that is not written here is lost.>
 

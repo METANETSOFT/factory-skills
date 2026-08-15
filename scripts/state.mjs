@@ -3,18 +3,21 @@
 //
 // Everything the factory knows lives in files, never only in a context window.
 // A session can die at any token count and the next one resumes from here with
-// zero loss. That is the whole point: context is a cache, `.factory/` is truth.
+// zero loss. That is the whole point: context is a cache, the workspace is truth.
 //
-// Layout (relative to the project root):
-//   FACTORY.md                  durable charter: what this product is, how we work
-//   .factory/state.json         machine state (phase, active work, counters)
-//   .factory/ledger.md          append-only log of decisions, rulings, unfinished work
-//   .factory/work/<slug>/       one directory per unit of work
+// The workspace lives under the OS temp directory by default, keyed by the
+// project path — see lib/workspace.mjs for why, and for the two opt-outs.
+//
+// Layout (inside the workspace):
+//   FACTORY.md      durable charter: what this product is, how we work
+//   state.json      machine state (phase, active work, counters)
+//   ledger.md       append-only log of decisions, rulings, unfinished work
+//   work/<slug>/    one directory per unit of work
 //       RESEARCH.md PRD.md ARCHITECTURE.md PROGRAM-DESIGN.md PLAN.md HANDOFF.md
-//       evidence/               verification output, screenshots, logs
+//       evidence/   verification output, screenshots, logs
 //
 // Usage:
-//   node state.mjs init [--root DIR]
+//   node state.mjs init [--root DIR] [--in-project]
 //   node state.mjs show                       → JSON snapshot for the agent
 //   node state.mjs start <slug> [--title T]   → begin a unit of work
 //   node state.mjs phase <phase>              → advance the pipeline
@@ -27,6 +30,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolve as resolveWorkspace } from './lib/workspace.mjs'
 
 const PHASES = [
   'uninitialized',
@@ -53,17 +57,6 @@ const SESSION_CAPS = {
   subagent: 12,  // subagents dispatched
 }
 
-function findRoot(start = process.cwd()) {
-  let dir = path.resolve(start)
-  for (;;) {
-    if (fs.existsSync(path.join(dir, '.factory'))) return dir
-    if (fs.existsSync(path.join(dir, '.git'))) return dir
-    const up = path.dirname(dir)
-    if (up === dir) return path.resolve(start)
-    dir = up
-  }
-}
-
 const argv = process.argv.slice(2)
 const flag = (name, fallback = null) => {
   const i = argv.indexOf(`--${name}`)
@@ -71,10 +64,11 @@ const flag = (name, fallback = null) => {
 }
 const positional = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')))
 
-const ROOT = path.resolve(flag('root') || findRoot())
-const DIR = path.join(ROOT, '.factory')
-const STATE = path.join(DIR, 'state.json')
-const LEDGER = path.join(DIR, 'ledger.md')
+const P = resolveWorkspace(flag('root'), { inProject: argv.includes('--in-project') })
+const ROOT = P.root
+const DIR = P.ws
+const STATE = P.state
+const LEDGER = P.ledger
 
 const nowISO = () => new Date().toISOString()
 
@@ -158,12 +152,12 @@ function snapshot() {
   if (!s) {
     return {
       root: ROOT,
+      workspace: DIR,
       initialized: false,
       directive: 'NOT_INITIALIZED — run `node scripts/state.mjs init` and write FACTORY.md before any build work.',
     }
   }
-  const charter = path.join(ROOT, 'FACTORY.md')
-  const workDir = s.work ? path.join(DIR, 'work', s.work.slug) : null
+  const workDir = s.work ? path.join(P.work, s.work.slug) : null
   const artifacts = {}
   if (workDir && fs.existsSync(workDir)) {
     for (const f of ['RESEARCH.md', 'PRD.md', 'ARCHITECTURE.md', 'PROGRAM-DESIGN.md', 'PLAN.md', 'HANDOFF.md']) {
@@ -173,8 +167,10 @@ function snapshot() {
   }
   return {
     root: ROOT,
+    workspace: DIR,
+    inProject: P.inProject,
     initialized: true,
-    charter: fs.existsSync(charter),
+    charter: fs.existsSync(P.charter) ? P.charter : null,
     phase: s.phase,
     nextPhase: PHASES[Math.min(PHASES.indexOf(s.phase) + 1, PHASES.length - 1)],
     work: s.work,
@@ -205,8 +201,8 @@ switch (cmd) {
     const s = blankState()
     s.phase = 'research'
     write(s)
-    fs.mkdirSync(path.join(DIR, 'work'), { recursive: true })
-    appendLedger(`\n## ${nowISO()} — factory initialized\n\nroot: ${ROOT}\n`)
+    fs.mkdirSync(P.work, { recursive: true })
+    appendLedger(`\n## ${nowISO()} — factory initialized\n\nroot: ${ROOT}\nworkspace: ${DIR}\n`)
     out({ ok: true, created: true, ...snapshot() })
     break
   }
@@ -224,7 +220,7 @@ switch (cmd) {
     }
     const s = read() || blankState()
     const title = flag('title', slug)
-    const workDir = path.join(DIR, 'work', slug)
+    const workDir = path.join(P.work, slug)
     fs.mkdirSync(path.join(workDir, 'evidence'), { recursive: true })
     s.work = { slug, title, startedAt: nowISO(), dir: workDir }
     s.phase = 'research'

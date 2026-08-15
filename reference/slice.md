@@ -1,6 +1,6 @@
 # plan
 
-Phase 5 writes `.factory/work/<slug>/PLAN.md`: the vertical slices and the order they ship in. It exists to overwrite the build order a model defaults to, and it is the last thing the user reads before code starts appearing.
+Phase 5 writes `<workspace>/work/<slug>/PLAN.md`: the vertical slices and the order they ship in. It exists to overwrite the build order a model defaults to, and it is the last thing the user reads before code starts appearing.
 
 ## Order
 

@@ -99,7 +99,7 @@ These do not qualify, and each is a guess wearing an explanation's clothes: "the
 
 The fix is the smallest change that removes the mechanism. Not the surrounding refactor, not the defensive checks elsewhere, not the three related things you noticed — those are findings for the ledger (Law 3), not scope for this commit.
 
-The regression test is proven in both directions, and both outputs go in `.factory/work/<slug>/evidence/`:
+The regression test is proven in both directions, and both outputs go in `<workspace>/work/<slug>/evidence/`:
 
 1. Test added, fix reverted → the test **fails**, for the stated mechanism's reason.
 2. Fix reapplied → the test **passes**.
@@ -124,7 +124,7 @@ Two failures mean the mechanism was never understood, and by now the accumulated
 
 ## Record the root cause
 
-Append to `.factory/ledger.md`, then mirror it into state:
+Append to `<workspace>/ledger.md`, then mirror it into state:
 
 ```markdown
 ### Root cause — <symptom>

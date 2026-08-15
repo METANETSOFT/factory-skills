@@ -66,8 +66,8 @@ You are reviewing code you did not write. Your job is to refute it.
 WHAT WAS BUILT   <the user problem, one paragraph — not the implementation>
 WHY IT MATTERS   <the cost if this ships broken>
 THE DIFF         git diff <base>..HEAD   — read it yourself; trust nothing above
-THE BAR          .factory/work/<slug>/PRD.md acceptance criteria; every row thresholded
-CLAIMED EVIDENCE .factory/work/<slug>/evidence/EVIDENCE.md — re-run what it claims
+THE BAR          <workspace>/work/<slug>/PRD.md acceptance criteria; every row thresholded
+CLAIMED EVIDENCE <workspace>/work/<slug>/evidence/EVIDENCE.md — re-run what it claims
 
 HARSHNESS 7/10. Assume competence and look for the defect anyway. Do not manufacture
 findings to look thorough.
@@ -80,7 +80,7 @@ HUNT, in this order:
   4 claims in EVIDENCE.md whose command you cannot reproduce
   5 the criterion nobody wrote a check for
 
-REPORT to .factory/work/<slug>/evidence/EVIDENCE.md under "## Review findings", one row
+REPORT to <workspace>/work/<slug>/evidence/EVIDENCE.md under "## Review findings", one row
 each, exactly these fields: finding | file:line | blocking|material|minor | how to
 reproduce | what you ran to confirm it. Then return only the count by severity.
 
@@ -112,7 +112,7 @@ An artefact failing provenance is worse than none: it upgrades an unproven claim
 ## The artifact
 
 ```
-.factory/work/<slug>/evidence/
+<workspace>/work/<slug>/evidence/
   01-auth-suite.txt        raw stdout; exit code on the last line
   02-empty-state.png       artefact from a real run
   03-regression-red.txt    the failing-first output, before the fix

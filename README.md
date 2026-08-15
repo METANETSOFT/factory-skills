@@ -86,18 +86,34 @@ list. It never auto-starts a phase.
 
 ### Everything lives in files
 
+**Not in your repository.** A run produces a research note, a PRD, a program design, a plan, a ledger
+and a pile of evidence. That is scaffolding for the work, not part of your product, so it goes to a
+workspace under the OS temp directory keyed by the project path:
+
 ```
-FACTORY.md                     the durable charter — what this is, how we work, what proves it works
-.factory/state.json            phase, active work, slice counter, session counters
-.factory/ledger.md             append-only: every ruling, risk, and unfinished item
-.factory/slop-baseline.json    this project's structural starting line
-.factory/work/<slug>/
-    RESEARCH.md PRD.md ARCHITECTURE.md PROGRAM-DESIGN.md PLAN.md HANDOFF.md
-    evidence/
+$TMPDIR/claude-factory/<project>-<hash>/
+    FACTORY.md            the durable charter — what this is, how we work, what proves it works
+    state.json            phase, active work, slice counter, session counters
+    ledger.md             append-only: every ruling, risk, and unfinished item
+    slop-baseline.json    this project's structural starting line
+    work/<slug>/
+        RESEARCH.md PRD.md ARCHITECTURE.md PROGRAM-DESIGN.md PLAN.md HANDOFF.md
+        evidence/
 ```
 
-A session can die at any token count and the next one resumes from here without asking you a single
-question. Context is a cache; `.factory/` is the truth.
+It survives `/clear`, a new session, and a machine that stays up — everything a handoff needs — and
+it disappears on reboot, which is right for scaffolding. Two opt-outs, both explicit:
+
+| | |
+|---|---|
+| `state.mjs init --in-project` | use `<project>/.factory` instead, for work that spans weeks and belongs in the repo |
+| `FACTORY_HOME=/some/dir` | keep every workspace under a directory of your own |
+
+A `FACTORY.md` committed at the project root always wins over the workspace copy, so a team can keep
+the charter under review without dragging the scaffolding along with it.
+
+A session can die at any token count and the next one resumes from the workspace without asking you a
+single question. Context is a cache; the workspace is the truth.
 
 ### Seven phases, seven checkpoints
 

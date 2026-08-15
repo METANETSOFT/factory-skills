@@ -18,6 +18,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SCRIPTS = path.join(path.dirname(HERE), 'scripts')
 const only = process.argv[2] || null
 
+// Every test's workspace lands here, so a run never touches the shared temp
+// location a real project would use.
+const TEST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-home-root-'))
+
 let pass = 0
 const failures = []
 let group = ''
@@ -54,7 +58,9 @@ function run(script, args = [], opts = {}) {
     cwd: opts.cwd || process.cwd(),
     input: opts.input ?? '',
     encoding: 'utf8',
-    env: { ...process.env, ...(opts.env || {}) },
+    // FACTORY_HOME must win over anything ambient, or a developer who has it set
+    // would silently run the suite against their own workspace directory.
+    env: { ...process.env, FACTORY_HOME: TEST_HOME, ...(opts.env || {}) },
   })
   return { code: r.status, out: r.stdout || '', err: r.stderr || '' }
 }
@@ -65,6 +71,9 @@ const json = (r) => {
     throw new Error(`expected JSON on stdout, got:\n${r.out.slice(0, 300)}\n${r.err.slice(0, 300)}`)
   }
 }
+
+/** The workspace directory the scripts resolved for this project. */
+const wsOf = (dir) => json(run('state.mjs', ['show', '--root', dir])).workspace
 
 let tmpCount = 0
 function project({ git = true } = {}) {
@@ -112,7 +121,7 @@ describe('state', () => {
     const s = json(run('state.mjs', ['start', 'auth', '--title', 'Auth rework', '--root', d]))
     eq(s.work.slug, 'auth')
     eq(s.work.title, 'Auth rework')
-    assert(fs.existsSync(path.join(d, '.factory/work/auth/evidence')), 'evidence dir missing')
+    assert(fs.existsSync(path.join(wsOf(d), 'work/auth/evidence')), 'evidence dir missing')
   })
 
   t('a --title containing spaces and a dash survives argument parsing', () => {
@@ -147,7 +156,7 @@ describe('state', () => {
     run('state.mjs', ['start', 'w', '--root', d])
     const n = json(run('state.mjs', ['note', 'ruling', 'JWT over sessions', '--root', d]))
     eq(n.openCount, 0)
-    assert(fs.readFileSync(path.join(d, '.factory/ledger.md'), 'utf8').includes('JWT over sessions'))
+    assert(fs.readFileSync(path.join(wsOf(d), 'ledger.md'), 'utf8').includes('JWT over sessions'))
   })
 
   t('note rejects an unknown kind', () => {
@@ -210,10 +219,49 @@ describe('state', () => {
     eq(s.openItems.length, 1)
   })
 
+  t('the workspace defaults OUTSIDE the project — no .factory in the repo', () => {
+    const d = project()
+    run('state.mjs', ['init', '--root', d])
+    run('state.mjs', ['start', 'w', '--root', d])
+    run('state.mjs', ['note', 'decision', 'x', '--root', d])
+    assert(!fs.existsSync(path.join(d, '.factory')), 'the factory wrote into the user\'s project')
+    const s = json(run('state.mjs', ['show', '--root', d]))
+    eq(s.inProject, false)
+    assert(s.workspace.startsWith(TEST_HOME), `workspace escaped FACTORY_HOME: ${s.workspace}`)
+  })
+
+  t('--in-project puts the workspace in the repo when asked', () => {
+    const d = project()
+    run('state.mjs', ['init', '--root', d, '--in-project'])
+    const s = json(run('state.mjs', ['show', '--root', d]))
+    eq(s.inProject, true)
+    assert(fs.existsSync(path.join(d, '.factory/state.json')), 'opt-in workspace not created in project')
+  })
+
+  t('an existing in-project workspace keeps winning without the flag', () => {
+    const d = project()
+    run('state.mjs', ['init', '--root', d, '--in-project'])
+    run('state.mjs', ['start', 'w', '--root', d])
+    const s = json(run('state.mjs', ['show', '--root', d]))
+    eq(s.inProject, true)
+  })
+
+  t('two projects with the same basename get different workspaces', () => {
+    const a = fs.mkdtempSync(path.join(os.tmpdir(), 'same-name-a-'))
+    const b = fs.mkdtempSync(path.join(os.tmpdir(), 'same-name-b-'))
+    const pa = path.join(a, 'app')
+    const pb = path.join(b, 'app')
+    fs.mkdirSync(pa)
+    fs.mkdirSync(pb)
+    run('state.mjs', ['init', '--root', pa])
+    run('state.mjs', ['init', '--root', pb])
+    assert(wsOf(pa) !== wsOf(pb), 'two projects collided on one workspace')
+  })
+
   t('a corrupt state.json does not crash show', () => {
     const d = project()
     run('state.mjs', ['init', '--root', d])
-    fs.writeFileSync(path.join(d, '.factory/state.json'), '{ this is not json')
+    fs.writeFileSync(path.join(wsOf(d), 'state.json'), '{ this is not json')
     const s = json(run('state.mjs', ['show', '--root', d]))
     assert(s.initialized === true || s.initialized === false, 'show must still answer')
   })
@@ -222,7 +270,7 @@ describe('state', () => {
     const d = project()
     run('state.mjs', ['init', '--root', d])
     run('state.mjs', ['start', 'w', '--root', d])
-    const led = path.join(d, '.factory/ledger.md')
+    const led = path.join(wsOf(d), 'ledger.md')
     const before = fs.readFileSync(led, 'utf8')
     run('state.mjs', ['note', 'decision', 'later entry', '--root', d])
     const after = fs.readFileSync(led, 'utf8')
@@ -378,7 +426,7 @@ describe('slop', () => {
     const d = project()
     write(d, 'a.js', 'function f() {\n  return 1\n}\n')
     run('slop.mjs', ['baseline', d], { cwd: d })
-    assert(fs.existsSync(path.join(d, '.factory/slop-baseline.json')), 'baseline file not written')
+    assert(fs.existsSync(path.join(wsOf(d), 'slop-baseline.json')), 'baseline file not written')
     const r = run('slop.mjs', ['check'], { cwd: d })
     eq(r.code, 0, `check should pass on an unchanged tree:\n${r.out}`)
   })

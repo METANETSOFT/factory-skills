@@ -60,7 +60,7 @@ CONSTRAINTS  framework <x>; no new dependency without stating its bundle cost;
 STATES       default / empty / loading / error / longest realistic content
 OUT OF SCOPE <what must not change: routes, copy, data shape, the token layer itself>
 RETURN       files changed, lines added AND lines deleted, plus one screenshot per surface
-             per state at 390px and 1440px, written to .factory/work/<slug>/evidence/
+             per state at 390px and 1440px, written to <workspace>/work/<slug>/evidence/
 ```
 
 `state.mjs tick subagent` after each dispatch; the cap is 12. Multi-agent runs burn 3–10× the tokens, so dispatch for context isolation, not for theatre.
@@ -108,7 +108,7 @@ Run the diff through [anti-slop.md](anti-slop.md) before asking anyone to look a
 Design artefacts live in the same index as everything else — one `EVIDENCE.md`, not a trail of summaries.
 
 ```
-.factory/work/<slug>/evidence/
+<workspace>/work/<slug>/evidence/
   10-checkout-default-1440.png
   11-checkout-default-390.png
   12-checkout-empty-390.png

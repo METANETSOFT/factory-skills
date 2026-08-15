@@ -30,6 +30,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { findRoot, paths as workspacePaths } from './lib/workspace.mjs'
 
 const argv = process.argv.slice(2)
 const has = (f) => argv.includes(`--${f}`)
@@ -56,16 +57,8 @@ const SKIP_DIR = new Set([
 
 const isTestPath = (p) => /(^|[\/.])(test|tests|spec|__tests__|e2e|fixtures?)([\/.]|$)/i.test(p)
 
-function findRoot(start = process.cwd()) {
-  let dir = path.resolve(start)
-  for (;;) {
-    if (fs.existsSync(path.join(dir, '.factory')) || fs.existsSync(path.join(dir, '.git'))) return dir
-    const up = path.dirname(dir)
-    if (up === dir) return path.resolve(start)
-    dir = up
-  }
-}
 const ROOT = findRoot()
+const WS = workspacePaths(ROOT)
 
 function walk(dir, acc = []) {
   let entries = []
@@ -111,136 +104,164 @@ function collectFiles() {
 
 // --- lexing ------------------------------------------------------------------
 
-// Blank out every string, template literal, comment and regex literal, keeping
-// the file's exact length and line structure. Everything downstream — brace
+// A cursor over the source that writes a parallel, code-only buffer of exactly
+// the same length. Blanked characters become spaces, newlines are preserved, so
+// every downstream line and column still lines up with the original file.
+class Blanker {
+  constructor(src) {
+    this.src = src
+    this.out = new Array(src.length)
+    this.i = 0
+    this.lastKept = null // last non-space character actually kept, for regex disambiguation
+  }
+  get done() {
+    return this.i >= this.src.length
+  }
+  at(k = 0) {
+    return this.src[this.i + k]
+  }
+  keep(n = 1) {
+    while (n-- > 0 && !this.done) {
+      const c = this.src[this.i]
+      this.out[this.i] = c
+      if (!/\s/.test(c)) this.lastKept = c
+      this.i++
+    }
+  }
+  blank(n = 1) {
+    while (n-- > 0 && !this.done) {
+      const c = this.src[this.i]
+      this.out[this.i] = c === '\n' ? '\n' : ' '
+      this.i++
+    }
+  }
+  blankWhile(pred) {
+    while (!this.done && pred()) this.blank()
+  }
+  /** Blank an escape pair so a backslash cannot hide the closing delimiter. */
+  blankEscape() {
+    if (this.at() === '\\') {
+      this.blank(2)
+      return true
+    }
+    return false
+  }
+  result() {
+    return this.out.join('')
+  }
+}
+
+const blankLineComment = (b) => b.blankWhile(() => b.at() !== '\n')
+
+function blankBlockComment(b) {
+  b.blank(2)
+  while (!b.done && !(b.at() === '*' && b.at(1) === '/')) b.blank()
+  b.blank(2)
+}
+
+/** A single- or double-quoted string. `bounded` stops at a newline (Python). */
+function blankQuoted(b, quote, bounded) {
+  b.blank()
+  while (!b.done && b.at() !== quote) {
+    if (bounded && b.at() === '\n') return
+    if (b.blankEscape()) continue
+    b.blank()
+  }
+  b.blank()
+}
+
+function blankTripleQuoted(b, quote) {
+  const close = quote.repeat(3)
+  b.blank(3)
+  while (!b.done && b.src.slice(b.i, b.i + 3) !== close) b.blank()
+  b.blank(3)
+}
+
+/** A template literal: the text is blanked, the code inside ${...} is kept. */
+function blankTemplate(b) {
+  b.blank()
+  let depth = 0
+  while (!b.done) {
+    if (b.blankEscape()) continue
+    if (depth === 0) {
+      if (b.at() === '`') break
+      if (b.at() === '$' && b.at(1) === '{') {
+        b.blank()
+        b.keep()
+        depth = 1
+        continue
+      }
+      b.blank()
+      continue
+    }
+    if (b.at() === '{') depth++
+    else if (b.at() === '}') depth--
+    b.keep()
+  }
+  b.blank()
+}
+
+/** A regex literal, including its character classes and trailing flags. */
+function blankRegex(b) {
+  b.blank()
+  let inClass = false
+  while (!b.done && b.at() !== '\n') {
+    if (b.blankEscape()) continue
+    const c = b.at()
+    if (c === '[') inClass = true
+    else if (c === ']') inClass = false
+    else if (c === '/' && !inClass) break
+    b.blank()
+  }
+  if (b.at() === '/') b.blank()
+  b.blankWhile(() => /[a-z]/.test(b.at() || ''))
+}
+
+// A `/` opens a regex only where a value cannot already be present — otherwise
+// it is division. Getting this wrong silently blanks real code, so the test
+// suite pins it with a regex containing braces.
+const REGEX_MAY_FOLLOW = new Set('(,=:[!&|?{};+-*%~^<>'.split(''))
+
+function blankPython(b) {
+  while (!b.done) {
+    const c = b.at()
+    if (c === '#') {
+      blankLineComment(b)
+    } else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) {
+      blankTripleQuoted(b, c)
+    } else if (c === '"' || c === "'") {
+      blankQuoted(b, c, true)
+    } else {
+      b.keep()
+    }
+  }
+}
+
+function blankCLike(b) {
+  while (!b.done) {
+    const c = b.at()
+    if (c === '/' && b.at(1) === '/') blankLineComment(b)
+    else if (c === '/' && b.at(1) === '*') blankBlockComment(b)
+    else if (c === '"' || c === "'") blankQuoted(b, c, false)
+    else if (c === '`') blankTemplate(b)
+    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept))) blankRegex(b)
+    else b.keep()
+  }
+}
+
+// Blank every string, template literal, comment and regex literal, keeping the
+// file's exact length and line structure. Everything downstream — brace
 // balancing, keyword counting — then operates on real code only.
 //
-// This exists because line-wise regex stripping cannot see a template literal
-// or block comment that spans lines, so a single unbalanced brace inside one
-// makes a function body run to the end of the file. That failure inflates a
-// function's complexity into the hundreds and makes the erosion number a lie.
+// This exists because line-wise regex stripping cannot see a template literal or
+// block comment that spans lines, so one unbalanced brace inside either makes a
+// function body run to the end of the file. That failure inflates a function's
+// complexity into the hundreds and makes the erosion number a lie.
 function blankNonCode(src, lang) {
-  const out = new Array(src.length)
-  const keep = (i) => (out[i] = src[i])
-  const blank = (i) => (out[i] = src[i] === '\n' ? '\n' : ' ')
-
-  let i = 0
-  const n = src.length
-  const prevSignificant = () => {
-    for (let k = i - 1; k >= 0; k--) {
-      const c = out[k]
-      if (c && !/\s/.test(c)) return c
-    }
-    return null
-  }
-
-  while (i < n) {
-    const c = src[i]
-    const c2 = src[i + 1]
-
-    if (lang === 'py') {
-      if (c === '#') {
-        while (i < n && src[i] !== '\n') blank(i++)
-        continue
-      }
-      if ((c === '"' || c === "'") && src[i + 1] === c && src[i + 2] === c) {
-        const q = c + c + c
-        blank(i++), blank(i++), blank(i++)
-        while (i < n && src.slice(i, i + 3) !== q) blank(i++)
-        for (let k = 0; k < 3 && i < n; k++) blank(i++)
-        continue
-      }
-      if (c === '"' || c === "'") {
-        blank(i++)
-        while (i < n && src[i] !== c && src[i] !== '\n') {
-          if (src[i] === '\\') blank(i++)
-          if (i < n) blank(i++)
-        }
-        if (i < n) blank(i++)
-        continue
-      }
-      keep(i++)
-      continue
-    }
-
-    // C-like
-    if (c === '/' && c2 === '/') {
-      while (i < n && src[i] !== '\n') blank(i++)
-      continue
-    }
-    if (c === '/' && c2 === '*') {
-      blank(i++), blank(i++)
-      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) blank(i++)
-      if (i < n) blank(i++)
-      if (i < n) blank(i++)
-      continue
-    }
-    if (c === '"' || c === "'") {
-      blank(i++)
-      while (i < n && src[i] !== c) {
-        if (src[i] === '\\') blank(i++)
-        if (i < n) blank(i++)
-      }
-      if (i < n) blank(i++)
-      continue
-    }
-    if (c === '`') {
-      blank(i++)
-      // Template literals nest code inside ${...}; keep that code, blank the text.
-      let depth = 0
-      while (i < n) {
-        if (src[i] === '\\') {
-          blank(i++)
-          if (i < n) blank(i++)
-          continue
-        }
-        if (depth === 0 && src[i] === '$' && src[i + 1] === '{') {
-          blank(i++), keep(i++)
-          depth = 1
-          continue
-        }
-        if (depth > 0) {
-          if (src[i] === '{') depth++
-          if (src[i] === '}') {
-            depth--
-            keep(i++)
-            continue
-          }
-          keep(i++)
-          continue
-        }
-        if (src[i] === '`') break
-        blank(i++)
-      }
-      if (i < n) blank(i++)
-      continue
-    }
-    if (c === '/') {
-      // Regex literal vs division: a regex may only follow an operator, an
-      // opening bracket, or the start of a statement.
-      const p = prevSignificant()
-      if (p === null || '(,=:[!&|?{};+-*%~^<>'.includes(p)) {
-        blank(i++)
-        let cls = false
-        while (i < n && src[i] !== '\n') {
-          if (src[i] === '\\') {
-            blank(i++)
-            if (i < n) blank(i++)
-            continue
-          }
-          if (src[i] === '[') cls = true
-          else if (src[i] === ']') cls = false
-          else if (src[i] === '/' && !cls) break
-          blank(i++)
-        }
-        if (i < n && src[i] === '/') blank(i++)
-        while (i < n && /[a-z]/.test(src[i])) blank(i++)
-        continue
-      }
-    }
-    keep(i++)
-  }
-  return out.join('')
+  const b = new Blanker(src)
+  if (lang === 'py') blankPython(b)
+  else blankCLike(b)
+  return b.result()
 }
 
 function isComment(line, lang) {
@@ -271,85 +292,91 @@ const FN_C =
   /(?:^|\s)(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|func\s+(?:\([^)]*\)\s*)?([A-Za-z_$][\w$]*)|(?:public|private|protected|static|\s)*[A-Za-z_$][\w$<>,\[\]\s]*\s+([A-Za-z_$][\w$]*)\s*\([^;{]*\)\s*\{)/
 const FN_PY = /^(\s*)(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(/
 
-function functionsIn(file, blankedLines) {
-  const lang = EXT[path.extname(file)]
-  const lines = blankedLines
+/** Python bodies are bounded by indentation: the block ends at the first
+ *  non-blank line indented no further than the `def`. */
+function pythonFunctions(file, lines) {
   const fns = []
-
-  if (lang === 'py') {
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(FN_PY)
-      if (!m) continue
-      const indent = m[1].length
-      const body = []
-      for (let j = i + 1; j < lines.length; j++) {
-        const l = lines[j]
-        if (l.trim() && l.search(/\S/) <= indent) break
-        body.push(l)
-      }
-      const { cc, sloc } = complexityOf(body, lang)
-      fns.push({ name: m[2], file, line: i + 1, cc, sloc })
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(FN_PY)
+    if (!m) continue
+    const indent = m[1].length
+    const body = []
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].trim() && lines[j].search(/\S/) <= indent) break
+      body.push(lines[j])
     }
-    return fns
+    const { cc, sloc } = complexityOf(body, 'py')
+    fns.push({ name: m[2], file, line: i + 1, cc, sloc })
   }
+  return fns
+}
 
+/** Locate the `{` that opens a body, or null when there is none.
+ *
+ *  Only a brace-bodied function has a body to measure. An expression arrow
+ *  (`const f = (x) => x + 1`) has none, and balancing from its line would
+ *  swallow the NEXT function's braces and report its complexity here — which is
+ *  how a one-line helper ends up reported at CC 30.
+ */
+function findBodyStart(lines, declLine, match) {
+  const LOOKAHEAD = 4
+  for (let j = declLine; j < Math.min(declLine + LOOKAHEAD, lines.length); j++) {
+    const from = j === declLine ? Math.max(match.index + match[0].length - 1, 0) : 0
+    const seg = lines[j].slice(from)
+    const brace = seg.indexOf('{')
+    const semi = seg.indexOf(';')
+    if (brace !== -1 && (semi === -1 || brace < semi)) return { line: j, col: from + brace }
+    if (semi !== -1) return null
+    // Keep looking on the next line only when this one clearly continues — a
+    // dangling parameter list, or an arrow whose body opens on the line below.
+    if (!/[(,]\s*$|=>\s*$/.test(seg)) return null
+  }
+  return null
+}
+
+/** Read a brace-balanced body. Returns null when the braces never balance,
+ *  which means the lexer lost track on minified or exotic source. Skipping is
+ *  correct there: a fabricated number is worse than a missing one. */
+function readBracedBody(lines, start) {
+  let depth = 0
+  let started = false
+  const body = []
+  for (let j = start.line; j < lines.length; j++) {
+    const from = j === start.line ? start.col : 0
+    for (let k = from; k < lines[j].length; k++) {
+      const ch = lines[j][k]
+      if (ch === '{') {
+        depth++
+        started = true
+      } else if (ch === '}') depth--
+    }
+    if (j > start.line) body.push(lines[j])
+    if (started && depth <= 0) return { body, endLine: j }
+  }
+  return null
+}
+
+function cLikeFunctions(file, lines) {
+  const fns = []
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(FN_C)
     if (!m) continue
     const name = m[1] || m[2] || m[3] || m[4]
     if (!name) continue
-
-    // Only a brace-bodied function has a body to measure. An expression arrow
-    // (`const f = (x) => x + 1`) has none, and balancing from its line would
-    // swallow the NEXT function's braces and report its complexity here.
-    // Look ahead for the opening brace, bailing at a statement end.
-    let bodyStartLine = -1
-    let bodyStartCol = -1
-    scan: for (let j = i; j < Math.min(i + 4, lines.length); j++) {
-      const from = j === i ? Math.max(m.index + m[0].length - 1, 0) : 0
-      const seg = lines[j].slice(from)
-      const brace = seg.indexOf('{')
-      const semi = seg.indexOf(';')
-      if (brace !== -1 && (semi === -1 || brace < semi)) {
-        bodyStartLine = j
-        bodyStartCol = from + brace
-        break scan
-      }
-      if (semi !== -1) break scan
-      // Only keep looking on the next line when this one clearly continues —
-      // a dangling parameter list or an arrow whose body is on the line below.
-      // Without this, a one-line expression arrow walks forward and adopts the
-      // braces of whatever function is declared next.
-      if (!/[(,]\s*$|=>\s*$/.test(seg)) break scan
-    }
-    if (bodyStartLine === -1) continue
-
-    let depth = 0
-    let started = false
-    const body = []
-    let j = bodyStartLine
-    for (; j < lines.length; j++) {
-      const from = j === bodyStartLine ? bodyStartCol : 0
-      for (let k = from; k < lines[j].length; k++) {
-        const ch = lines[j][k]
-        if (ch === '{') {
-          depth++
-          started = true
-        } else if (ch === '}') depth--
-      }
-      if (j > bodyStartLine) body.push(lines[j])
-      if (started && depth <= 0) break
-    }
-    // An unbalanced body means the lexer lost track (minified or exotic source).
-    // Skip it rather than reporting a function with the complexity of a whole
-    // file — a fabricated number is worse than a missing one.
-    if (!started || depth > 0) continue
-    const { cc, sloc } = complexityOf(body, lang)
-    if (sloc < 2) continue
-    fns.push({ name, file, line: i + 1, cc, sloc })
-    i = j
+    const start = findBodyStart(lines, i, m)
+    if (!start) continue
+    const read = readBracedBody(lines, start)
+    if (!read) continue
+    const { cc, sloc } = complexityOf(read.body, 'c')
+    if (sloc >= 2) fns.push({ name, file, line: i + 1, cc, sloc })
+    i = read.endLine
   }
   return fns
+}
+
+function functionsIn(file, blankedLines) {
+  const lang = EXT[path.extname(file)]
+  return lang === 'py' ? pythonFunctions(file, blankedLines) : cLikeFunctions(file, blankedLines)
 }
 
 // --- slop line patterns ------------------------------------------------------
@@ -486,7 +513,7 @@ function scan() {
   }
 }
 
-const BASELINE = path.join(ROOT, '.factory', 'slop-baseline.json')
+const BASELINE = WS.baseline
 
 function report(r) {
   if (has('json')) {
