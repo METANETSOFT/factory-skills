@@ -1,0 +1,20 @@
+# Never commit secrets. The factory writes a lot of files, and a handoff or a
+# ledger entry is exactly the kind of place a key gets pasted "just for now".
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# Local scratch
+node_modules/
+*.log
+.DS_Store
+
+# Per-project factory state belongs to the project that generated it, not to
+# this skill's own repository.
+.factory/

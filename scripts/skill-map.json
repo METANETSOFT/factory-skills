@@ -1,0 +1,310 @@
+{
+  "version": 2,
+  "note": "Machine-readable twin of reference/skill-map.md. skills.mjs resolves a job kind to the skills that should be loaded before work starts. `prefer` is loaded first and owns the job; `also` is loaded only when its trigger applies; `external` is not installed locally and must be fetched. Nothing here is vendored into the factory — these are references. If a skill is installed, use it; if not, offer the install line; if it cannot be installed, follow its `degrade` note and say out loud that you are on the degraded path.",
+
+  "registry": {
+    "_comment": "Provenance for every skill this map routes to. `source` is recorded ONLY where it is actually known — a guessed repo URL is worse than none, because it sends the user somewhere that does not exist. Where the source is unknown, `find` says how to locate it and `degrade` says what to do without it.",
+
+    "impeccable": {
+      "source": "npm package `impeccable` — the skill drives itself through `npx impeccable`",
+      "install": "npx impeccable",
+      "degrade": "Do the interface work inline against a written craft floor: commit to one visual world before editing, inspect the incumbent tokens/theme first, ban gradient-text and unearned glassmorphism, and verify on desktop and mobile in one batched pass rather than an open-ended polish loop."
+    },
+    "find-docs": {
+      "source": "https://github.com/upstash/context7 — the skill is a wrapper over the Context7 CLI",
+      "install": "npx ctx7@latest library \"<name>\" then npx ctx7@latest docs <id> \"<question>\"",
+      "degrade": "Call the Context7 CLI directly — it needs no skill wrapper. Only fall back to WebSearch when the library is absent from Context7, and never answer API questions from memory: training data lags releases and a wrong signature costs a debugging cycle."
+    },
+    "superpowers": {
+      "source": "https://github.com/obra/superpowers",
+      "install": "/plugin marketplace add obra/superpowers",
+      "degrade": "The discipline it carries is already restated in the Laws and in reference/verify.md. Install it for the full playbooks; do not reimplement it."
+    },
+    "handoff": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Write the handoff by hand against the fixed schema in reference/context-discipline.md." },
+    "code-review": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Dispatch a subagent whose only instruction is to refute the diff." },
+    "security-review": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Review auth, secrets, input handling and network boundaries by hand against the diff." },
+    "simplify": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Run `slop.mjs check` and consolidate what it names." },
+    "run": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Start the app yourself and capture the output as evidence." },
+    "dataviz": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Pick one chart form per question, label axes, and keep the palette to one accent." },
+    "loop": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Drive the loop from reference/loop.md with an explicit stop condition." },
+    "schedule": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Ask the user to run the loop manually, or generate a cron/GitHub Actions workflow." },
+    "artifact-design": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Write the deliverable as a plain markdown file and hand over the path." },
+
+    "_provenance_warning": "The community design/motion skills below circulate as copies. A GitHub search for any of their names returns many mirrors and forks with no single authoritative upstream, and the skill files themselves record no source. So each entry gives a SEARCH that will find current copies rather than a URL that might point at an abandoned fork. Verify what you find before installing it: read its SKILL.md, and never run an install command from a repo you have not opened.",
+
+    "design-taste-frontend": {
+      "find": "gh search repos design-taste-frontend  — or https://github.com/search?q=design-taste-frontend",
+      "degrade": "Audit before redesigning: read the incumbent tokens and one real page, name what is templated about it, then commit to a single direction and apply it consistently. The value it adds is refusing the default centred-hero-three-cards layout."
+    },
+    "emil-design-eng": {
+      "find": "gh search repos emil-design-eng  — often bundled with impeccable and design-taste-frontend",
+      "degrade": "Work at component level: hit states, focus rings, disabled states, loading and empty states, and transitions under 200ms. The details it owns are the ones no detector catches."
+    },
+    "apple-design": {
+      "find": "gh search repos apple-design skill",
+      "degrade": "Follow Apple's Human Interface Guidelines directly for gesture, spring and material questions; prefer interruptible spring animations over fixed-duration easing, and honour prefers-reduced-motion."
+    },
+    "pick-ui-library": { "find": "gh search repos pick-ui-library", "degrade": "Choose from what the project already depends on; introduce a new component library only when the user asks, and say what it costs in bundle size." },
+    "redesign-existing-projects": { "find": "gh search repos redesign-existing-projects skill", "degrade": "Audit first, list what is generic, then change one layer at a time — tokens, then layout, then components — verifying the app still runs between layers." },
+    "high-end-visual-design": { "find": "gh search repos high-end-visual-design skill", "degrade": "Spend the budget on type scale, spacing rhythm and one confident accent; avoid the tells — gradient text, unearned glassmorphism, evenly-weighted card grids." },
+    "imagegen-frontend-web": { "find": "gh search repos imagegen-frontend-web", "degrade": "Generate one reference image per section rather than a single compressed board, and keep one palette across all of them." },
+    "imagegen-frontend-mobile": { "find": "gh search repos imagegen-frontend-mobile", "degrade": "Design per screen with a consistent nav shell, and keep body text at a size that survives a phone mockup." },
+    "image-to-code": { "find": "gh search repos image-to-code skill claude", "degrade": "Generate the target image first, analyse it explicitly in writing, then implement against that written analysis rather than against a memory of the picture." },
+    "brandkit": { "find": "gh search repos brandkit skill claude", "degrade": "Produce a one-page system: logo lockup, palette with hex values and roles, type pairing with scale, and three applied mockups." },
+    "fal-design": { "find": "https://fal.ai — the skill wraps the fal.ai API; needs FAL_KEY", "degrade": "Ask the user which image or video service they have a key for; do not generate assets without an explicit key and a stated per-job price." },
+    "improve-animations": { "find": "gh search repos improve-animations skill", "degrade": "Audit existing motion for duration, easing and purpose; anything over 400ms or without a reason to exist is a finding." },
+    "find-animation-opportunities": { "find": "gh search repos find-animation-opportunities", "degrade": "Look for state changes the user cannot see happen — list appends, route changes, async completion — and propose motion only there." },
+    "review-animations": { "find": "gh search repos review-animations skill", "degrade": "Review the motion diff for reduced-motion handling, layout thrash and interruptibility." },
+    "animation-vocabulary": { "find": "gh search repos animation-vocabulary skill", "degrade": "Ask the user to describe the effect and name it yourself before building it — an unnamed effect gets rebuilt three times." },
+    "scroll-world": { "find": "gh search repos scroll-world skill", "degrade": "A scroll cinematic needs pre-rendered frames and a scrub engine; without the skill, say so and scope it explicitly rather than approximating with CSS." },
+    "code-structure": { "find": "gh search repos code-structure skill claude", "degrade": "Apply the deep-module vocabulary in reference/program-design.md; extract a shared module only at the second real caller." },
+    "full-output-enforcement": { "find": "gh search repos full-output-enforcement", "degrade": "Law 2 and Law 4 already carry this: no truncation, no placeholders, and a token limit means a handoff rather than an abridged file." },
+    "obsidian-memory": { "find": "user-specific — this one is wired to a private CouchDB/Obsidian vault", "degrade": "Durable facts go to FACTORY.md and the ledger instead. Do not attempt to reach a memory backend that is not configured." },
+    "searxng-search-internet": { "find": "https://github.com/searxng/searxng for the engine; the skill wraps a user-hosted instance", "degrade": "Use the built-in WebSearch and WebFetch tools." },
+    "kole-kimi": { "find": "user-specific — routes work to Kimi K3 through a local CLIProxyAPI gateway", "degrade": "Do the work yourself. Never route work to a gateway that is not configured." },
+    "omniroute-router": { "find": "user-specific — an OmniRoute gateway must be running", "degrade": "Do the work yourself rather than routing to an unavailable gateway." },
+    "drawio-skill": { "find": "gh search repos drawio skill claude  — requires the draw.io desktop CLI", "degrade": "Write the diagram as Mermaid in the artifact; it renders in markdown and in published artifacts without any external binary." },
+    "agent-browser": {
+      "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/agent-browser — CLI published as `agent-browser`",
+      "install": "npm i -g agent-browser  (or brew install agent-browser), then `agent-browser install`",
+      "degrade": "Use Playwright or the chrome-devtools CLI directly. Whatever you use, capture the artefact — a screenshot or a recording — and treat the artefact as evidence only after checking it came from a real environment."
+    },
+    "gpt-taste": { "find": "gh search repos gpt-taste skill", "degrade": "Covered by impeccable and design-taste-frontend; skip it rather than substituting." },
+    "stitch-design-taste": { "find": "gh search repos stitch-design-taste", "degrade": "Write the DESIGN.md by hand: type scale, palette with roles, spacing scale, motion defaults." },
+    "minimalist-ui": { "find": "gh search repos minimalist-ui skill", "degrade": "One accent colour, generous spacing, no shadows deeper than a hairline border." },
+    "industrial-brutalist-ui": { "find": "gh search repos industrial-brutalist-ui", "degrade": "Rigid grid, extreme type-scale contrast, utilitarian palette — commit fully or not at all; half-brutalism reads as broken." },
+    "framer-expert": { "find": "https://www.framer.com — the skill drives the Framer MCP plugin", "degrade": "Framer work needs the MCP connection or an API key; say so rather than producing code that cannot be applied." },
+    "framerapi": { "find": "https://www.framer.com — headless writes need a Framer API key", "degrade": "Same as framer-expert: stop and tell the user what credential is missing." }
+  },
+
+  "jobs": {
+    "research": {
+      "playbook": "reference/research.md",
+      "prefer": [],
+      "also": ["find-docs", "obsidian-memory", "searxng-search-internet"],
+      "triggers": {
+        "find-docs": "any named library, framework, SDK, CLI or cloud service is involved",
+        "obsidian-memory": "the project has prior history in shared memory",
+        "searxng-search-internet": "the answer is outside the codebase and outside library docs"
+      },
+      "external": ["humanlayer-rpi-research"]
+    },
+
+    "product": {
+      "playbook": "reference/product.md",
+      "prefer": [],
+      "also": ["obsidian-memory"],
+      "triggers": { "obsidian-memory": "prior product decisions may already be recorded" },
+      "external": []
+    },
+
+    "architecture": {
+      "playbook": "reference/architecture.md",
+      "prefer": [],
+      "also": ["code-structure", "drawio-skill"],
+      "triggers": {
+        "code-structure": "operational logic is duplicated across flows, or you are deciding what belongs in shared services",
+        "drawio-skill": "the architecture has 3+ components and a diagram would carry it better than prose"
+      },
+      "external": ["humanlayer-codebase-design"]
+    },
+
+    "program-design": {
+      "playbook": "reference/program-design.md",
+      "prefer": [],
+      "also": ["code-structure"],
+      "triggers": { "code-structure": "the design touches shared services or repeated operational blocks" },
+      "external": ["humanlayer-codebase-design", "humanlayer-improve-codebase-architecture"]
+    },
+
+    "implement": {
+      "playbook": "reference/implement.md",
+      "prefer": ["full-output-enforcement"],
+      "also": ["find-docs", "kole-kimi", "omniroute-router"],
+      "triggers": {
+        "full-output-enforcement": "always — it is the anti-truncation contract",
+        "find-docs": "any library API is being called",
+        "kole-kimi": "the user has asked to delegate grunt work to Kimi",
+        "omniroute-router": "the work is bulk and routine and quota matters"
+      },
+      "external": []
+    },
+
+    "verify": {
+      "playbook": "reference/verify.md",
+      "prefer": [],
+      "also": ["run", "code-review", "security-review"],
+      "triggers": {
+        "run": "the change needs to be seen working in the real app, not just in tests",
+        "code-review": "a diff exists and correctness review is due",
+        "security-review": "the change touches auth, secrets, input handling, or network boundaries"
+      },
+      "external": []
+    },
+
+    "review": {
+      "playbook": "reference/verify.md",
+      "prefer": ["code-review"],
+      "also": ["simplify", "security-review"],
+      "triggers": {
+        "simplify": "the diff works but carries duplication or over-abstraction",
+        "security-review": "the change touches auth, secrets, input handling, or network boundaries"
+      },
+      "external": []
+    },
+
+    "debug": {
+      "playbook": "reference/debug.md",
+      "prefer": [],
+      "also": ["find-docs", "run"],
+      "triggers": {
+        "find-docs": "the failure is inside a third-party library's behavior",
+        "run": "the bug must be reproduced in the running app"
+      },
+      "external": ["superpowers-systematic-debugging"]
+    },
+
+    "design-ui": {
+      "playbook": "reference/design.md",
+      "prefer": ["impeccable"],
+      "also": ["design-taste-frontend", "emil-design-eng", "apple-design", "pick-ui-library", "redesign-existing-projects"],
+      "triggers": {
+        "impeccable": "always for interface work — it owns the craft floor and the command set",
+        "design-taste-frontend": "landing page, portfolio or marketing site that must not read as templated",
+        "emil-design-eng": "component-level polish, micro-interactions and the invisible details",
+        "apple-design": "gesture-driven, spring-animated or native-feeling motion",
+        "pick-ui-library": "the component library has not been chosen yet",
+        "redesign-existing-projects": "an existing site is being upgraded rather than built"
+      },
+      "external": ["humanlayer-show-me"]
+    },
+
+    "design-visual": {
+      "playbook": "reference/design.md",
+      "prefer": [],
+      "also": ["imagegen-frontend-web", "imagegen-frontend-mobile", "image-to-code", "brandkit", "fal-design", "high-end-visual-design"],
+      "triggers": {
+        "imagegen-frontend-web": "web design references are needed before code",
+        "imagegen-frontend-mobile": "mobile app screens are being designed",
+        "image-to-code": "a visual target must be generated first, then implemented to match",
+        "brandkit": "brand guidelines, logo system or identity board",
+        "fal-design": "images, video, logos or art direction must actually be generated",
+        "high-end-visual-design": "the output must read as agency-grade rather than default"
+      },
+      "external": []
+    },
+
+    "motion": {
+      "playbook": "reference/design.md",
+      "prefer": [],
+      "also": ["improve-animations", "find-animation-opportunities", "review-animations", "animation-vocabulary", "apple-design", "scroll-world"],
+      "triggers": {
+        "improve-animations": "existing motion needs an audit and a roadmap",
+        "find-animation-opportunities": "the UI is static and should not be",
+        "review-animations": "a motion diff needs review",
+        "animation-vocabulary": "the user described an effect without naming it",
+        "scroll-world": "a scroll-scrubbed cinematic landing is wanted"
+      },
+      "external": []
+    },
+
+    "marketing": {
+      "playbook": "reference/marketing.md",
+      "prefer": [],
+      "also": ["searxng-search-internet", "brandkit", "imagegen-frontend-web", "fal-design", "dataviz"],
+      "triggers": {
+        "searxng-search-internet": "positioning needs real competitor and market evidence",
+        "brandkit": "the work is identity-level, not campaign-level",
+        "imagegen-frontend-web": "the deliverable is a landing page concept",
+        "fal-design": "ad creative or campaign imagery must be produced",
+        "dataviz": "the deliverable carries numbers"
+      },
+      "external": []
+    },
+
+    "docs": {
+      "playbook": "reference/marketing.md",
+      "prefer": [],
+      "also": ["artifact-design", "artifact-diagramming", "drawio-skill", "dataviz"],
+      "triggers": {
+        "artifact-design": "the deliverable is a page a human will read and share",
+        "artifact-diagramming": "a diagram carries the mechanism better than prose",
+        "drawio-skill": "the diagram must be editable or exported",
+        "dataviz": "the deliverable carries numbers"
+      },
+      "external": []
+    },
+
+    "loop": {
+      "playbook": "reference/loop.md",
+      "prefer": [],
+      "also": ["loop", "schedule"],
+      "triggers": {
+        "loop": "the user wants iteration on a wall-clock interval in this session",
+        "schedule": "the loop should survive this session and run in the cloud"
+      },
+      "external": ["humanlayer-design-control-loop", "humanlayer-build-iterated-agentic-loop"]
+    },
+
+    "handoff": {
+      "playbook": "reference/context-discipline.md",
+      "prefer": ["handoff"],
+      "also": ["obsidian-memory"],
+      "triggers": {
+        "handoff": "compacting this session into a document another session can pick up",
+        "obsidian-memory": "the fact is durable and belongs in shared memory, not just this project"
+      },
+      "external": []
+    }
+  },
+
+  "external": {
+    "humanlayer-codebase-design": {
+      "what": "Deep-module design vocabulary: module, interface, depth, seam, adapter, leverage, locality. Plus the deletion test and design-it-twice.",
+      "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/codebase-design",
+      "install": "node scripts/skills.mjs fetch humanlayer-codebase-design",
+      "why": "This is the vocabulary the program-design layer is written in. Without it the layer degenerates into restating the architecture."
+    },
+    "humanlayer-improve-codebase-architecture": {
+      "what": "Scan a codebase for deepening opportunities, report them, then work through one.",
+      "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/improve-codebase-architecture",
+      "install": "node scripts/skills.mjs fetch humanlayer-improve-codebase-architecture"
+    },
+    "humanlayer-show-me": {
+      "what": "Explain the current topic visually — diagrams, code-shape sketches, focused HTML.",
+      "source": "https://github.com/humanlayer/skills/tree/main/plugins/show-me",
+      "install": "npx skills add humanlayer/skills --skill show-me"
+    },
+    "humanlayer-design-control-loop": {
+      "what": "Interview-driven design of an agentic control loop: sensor, controller, actuator, disturbances.",
+      "source": "https://github.com/humanlayer/skills/tree/main/plugins/design-control-loop",
+      "install": "npx skills add humanlayer/skills --skill design-control-loop"
+    },
+    "humanlayer-build-iterated-agentic-loop": {
+      "what": "Build a repo-local skill plus a scheduled coding-agent workflow with a memory file that carries feedback between runs.",
+      "source": "https://github.com/humanlayer/skills/tree/main/plugins/build-iterated-agentic-loop",
+      "install": "npx skills add humanlayer/skills --skill build-iterated-agentic-loop"
+    },
+    "humanlayer-improve-claude-md": {
+      "what": "Rewrite CLAUDE.md using <important if> blocks so instructions actually get followed.",
+      "source": "https://github.com/humanlayer/skills/tree/main/plugins/improve-claude-md",
+      "install": "npx skills add humanlayer/skills --skill improve-claude-md"
+    },
+    "humanlayer-rpi-research": {
+      "what": "HumanLayer's Research-Plan-Implement plugin bootstrap.",
+      "source": "https://github.com/humanlayer/riptide-rpi",
+      "install": "/plugin marketplace add humanlayer/riptide-rpi"
+    },
+    "superpowers": {
+      "what": "The 14-skill agentic development methodology: brainstorming, writing-plans, executing-plans, subagent-driven-development, dispatching-parallel-agents, verification-before-completion, test-driven-development, systematic-debugging, requesting/receiving-code-review, git worktrees, writing-skills.",
+      "source": "https://github.com/obra/superpowers",
+      "install": "/plugin marketplace add obra/superpowers",
+      "why": "The factory's discipline layer is derived from these. Install the plugin to get the full playbooks rather than the summaries embedded here."
+    },
+    "superpowers-systematic-debugging": {
+      "what": "Root-cause-first debugging discipline: no fix proposed before the mechanism is understood.",
+      "source": "https://github.com/obra/superpowers/tree/main/skills/systematic-debugging",
+      "install": "/plugin marketplace add obra/superpowers"
+    }
+  }
+}
