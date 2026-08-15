@@ -545,6 +545,38 @@ describe('hooks', () => {
   })
 })
 
+describe('doctor', () => {
+  t('the skill passes its own integrity check', () => {
+    const r = run('doctor.mjs', ['--json'])
+    const d = json(r)
+    eq(d.problems, [], 'doctor found problems in the shipped skill')
+    eq(r.code, 0)
+  })
+
+  t('doctor exits non-zero when a playbook link is broken', () => {
+    // Prove the check can fail, not just that it passes today.
+    const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-doctor-'))
+    for (const d of ['scripts', 'scripts/lib', 'reference']) fs.mkdirSync(path.join(stage, d), { recursive: true })
+    for (const f of fs.readdirSync(SCRIPTS)) {
+      const src = path.join(SCRIPTS, f)
+      if (fs.statSync(src).isDirectory()) continue
+      fs.copyFileSync(src, path.join(stage, 'scripts', f))
+    }
+    for (const f of fs.readdirSync(path.join(SCRIPTS, 'lib'))) {
+      fs.copyFileSync(path.join(SCRIPTS, 'lib', f), path.join(stage, 'scripts/lib', f))
+    }
+    for (const f of fs.readdirSync(path.join(path.dirname(SCRIPTS), 'reference'))) {
+      fs.copyFileSync(path.join(path.dirname(SCRIPTS), 'reference', f), path.join(stage, 'reference', f))
+    }
+    fs.copyFileSync(path.join(path.dirname(SCRIPTS), 'SKILL.md'), path.join(stage, 'SKILL.md'))
+    fs.unlinkSync(path.join(stage, 'reference/verify.md'))
+    const r = spawnSync('node', [path.join(stage, 'scripts/doctor.mjs'), '--json'], { encoding: 'utf8' })
+    const d = JSON.parse(r.stdout)
+    eq(r.status, 1, 'doctor should fail on a missing playbook')
+    assert(d.problems.some((p) => /verify\.md/.test(p.msg)), 'the missing playbook was not named')
+  })
+})
+
 // -------------------------------------------------------------- context.mjs
 
 describe('context', () => {

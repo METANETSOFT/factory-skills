@@ -92,6 +92,7 @@ Phases are skippable *deliberately and out loud*, never by drift. A one-file bug
 | `handoff` | Freeze the session into a resumable document — [reference/context-discipline.md](reference/context-discipline.md) |
 | `resume` | Read the handoff and continue |
 | `skills` | `skills.mjs doctor` — what the tree can reach from here |
+| `doctor` | `doctor.mjs` — is this skill itself still coherent (links, scripts, map)? Run it after editing the skill |
 
 ## The skill tree
 

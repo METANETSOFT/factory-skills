@@ -193,8 +193,15 @@ guessed repository link is worse than none.
 
 ```bash
 node test/run.mjs          # everything
-node test/run.mjs slop     # one group: state | skills | slop | hooks | context
+node test/run.mjs slop     # one group: state | skills | slop | hooks | context | doctor
+node scripts/doctor.mjs    # is the skill itself still coherent?
 ```
+
+`doctor` checks the skill the way the skill asks you to check your code — with a command rather than
+a reading. It fails on a cross-link to a playbook that no longer exists, a documented subcommand a
+script does not accept, a job routed to a skill with no registry entry, a conditional skill with no
+trigger saying when to load it, a description that reads like a workflow summary, and a playbook with
+no exit condition. Run it after editing anything here.
 
 No framework and no dependencies; each test builds a throwaway project under the system temp
 directory. The suite exists because Law 1 applies to this skill's own code — the lexer in `slop.mjs`

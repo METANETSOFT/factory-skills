@@ -1,8 +1,6 @@
 # program-design
 
-Phase 4 answers one question: **what will the code look like before it exists?** It writes `<workspace>/work/<slug>/PROGRAM-DESIGN.md`, and it is done only when a reader can predict the diff.
-
-[architecture.md](architecture.md) settled which modules exist and what flows between them. This settles what a caller types and what the implementer writes. Skipping it violates Law 5, and the cost is measured: chained on their own output across 93 checkpoints, agent trajectories drift from a maintained repo's 0.31 structural erosion / 0.11 verbosity to 0.68 / 0.32, and average high-complexity function counts climb 4.1 → 37.0 — because nobody decided what shape the code was meant to be, so every session invented one and defended it.
+Phase 4 answers one question: **what will the code look like before it exists?** It writes `<workspace>/work/<slug>/PROGRAM-DESIGN.md`, and it is done only when a reader can predict the diff. [architecture.md](architecture.md) settled which modules exist and what flows between them; this settles what a caller types and what the implementer writes. Skipping it violates Law 5, and the cost is measured: chained on their own output across 93 checkpoints, agent trajectories drift from a maintained repo's 0.31 structural erosion / 0.11 verbosity to 0.68 / 0.32, and average high-complexity function counts climb 4.1 → 37.0 — because nobody decided what shape the code was meant to be, so every session invented one and defended it.
 
 **Design while the context is light.** A call-stack sketch costs a few hundred tokens; re-steering two thousand written lines costs the session, and a model deep in its window is biased toward whatever it chose first. Never ask yourself how much context remains — models estimate this precisely and wrongly. Use observable signals: parallel tool calls turning sequential, the same correction made twice, fewer than ~3 files read before an edit, unprompted offers to write a summary file. If any is showing when you arrive here, hand off ([context-discipline.md](context-discipline.md)) and design in a fresh session.
 
@@ -13,9 +11,7 @@ node ${CLAUDE_SKILL_DIR}/scripts/state.mjs phase program-design
 node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve program-design
 ```
 
-Re-read `RESEARCH.md` and `ARCHITECTURE.md` in full before writing a line. Re-read, do not remember: instructions lose the attention competition against recent tokens, and a design written from a memory of the architecture invents a second architecture that quietly disagrees with the first.
-
-`skills.mjs` names `code-structure` when the design touches shared services or repeated operational blocks, and the external `humanlayer-codebase-design`, which is where this vocabulary comes from. Installed → use it. Missing but installable → offer `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs fetch humanlayer-codebase-design`. Unavailable → work from this file and say out loud you are on the degraded path (Law 9).
+Re-read `RESEARCH.md` and `ARCHITECTURE.md` in full before writing a line. Re-read, do not remember: instructions lose the attention competition against recent tokens, and a design written from a memory of the architecture invents a second architecture that quietly disagrees with the first. `skills.mjs` names `code-structure` when the design touches shared services or repeated operational blocks, and the external `humanlayer-codebase-design`, which is where this vocabulary comes from. Installed → use it. Missing but installable → offer `node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs fetch humanlayer-codebase-design`. Unavailable → work from this file and say out loud you are on the degraded path (Law 9).
 
 **Any signature that names a third-party type, client or return shape is resolved through Context7, never from memory** — `npx ctx7@latest library "<name>" "<what to look up>"` then `npx ctx7@latest docs <id> "<question>"`. Training data lags releases; a wrong signature written here is copied into every slice and costs a debugging cycle per slice instead of one lookup.
 
@@ -65,17 +61,13 @@ Anything a caller must know that is not written here becomes tribal knowledge, a
 
 ## Design it twice when the interface is load-bearing
 
-Trigger, not a mood: the interface has **3+ call sites**, or every slice in the plan depends on it, or changing it later means a data migration or a breaking release. Then **dispatch two subagents in parallel and have each design it a radically different way** — not two variants of one idea. Give each the same `RESEARCH.md` facts and constraints, and no knowledge of the other's approach. Split by context boundary, never by role: two designers, not a designer and a critic — role-split handoffs are a documented telephone game that loses fidelity at every hop.
-
-Each writes to `<workspace>/work/<slug>/design-alt-<n>.md` and returns the interface block plus its deletion-test verdict; `state.mjs tick subagent` per dispatch (budget: 12 per session). Compare on three axes only — **depth**, **locality**, **seam placement** — pick one, and record the loser with its reason. A rejected alternative written down stops the next session relitigating it.
+Trigger, not a mood: the interface has **3+ call sites**, or every slice in the plan depends on it, or changing it later means a data migration or a breaking release. Then **dispatch two subagents in parallel and have each design it a radically different way** — not two variants of one idea. Give each the same `RESEARCH.md` facts and constraints, and no knowledge of the other's approach. Split by context boundary, never by role: two designers, not a designer and a critic — role-split handoffs are a documented telephone game that loses fidelity at every hop. Each writes to `<workspace>/work/<slug>/design-alt-<n>.md` and returns its interface block plus deletion-test verdict; `state.mjs tick subagent` per dispatch (budget: 12 a session). Compare on three axes only — **depth**, **locality**, **seam placement** — pick one, and record the loser with its reason. A rejected alternative written down stops the next session relitigating it.
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/scripts/state.mjs note decision "interface for <module>: chose <A> over <B> — deeper at <x>, change lands in one file"
 ```
 
 ## Write PROGRAM-DESIGN.md
-
-Fill this skeleton. Keep the file under 200 lines — that is reviewable in one sitting, and review at this layer is worth hundreds of lines of diff review later.
 
 ````markdown
 # Program design: <slug>
@@ -164,4 +156,5 @@ All six must hold before [slice.md](slice.md) begins:
 2. Every interface block carries invariants, ordering, errors, config names, performance and accepted dependencies — not just a type signature — and names the file it lands in.
 3. Every module has a written deletion-test verdict naming its callers; every seam lists 2+ adapters existing today or has been deleted.
 4. Every test named asserts through an interface in this file; none reaches past one.
-5. **Read the file back and answer literally: which files appear, which change, roughly what does each contain?** If you cannot, the design is unfinished, and the missing part is precisely the part the implementer will invent.
+5. The file is under 200 lines — reviewable in one sitting, which is where review pays; one team declines diff review above 500 lines and gets none of this leverage.
+6. **Read the file back and answer literally: which files appear, which change, roughly what does each contain?** If you cannot, the design is unfinished, and the missing part is precisely the part the implementer will invent.

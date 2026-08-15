@@ -204,6 +204,7 @@
         "find-animation-opportunities": "the UI is static and should not be",
         "review-animations": "a motion diff needs review",
         "animation-vocabulary": "the user described an effect without naming it",
+        "apple-design": "the motion should feel physical — springs, gestures, momentum, interruptible transitions",
         "scroll-world": "a scroll-scrubbed cinematic landing is wanted"
       },
       "external": []
