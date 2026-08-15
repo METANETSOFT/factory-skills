@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// factory/state.mjs — the on-disk brain.
+// factory/state.ts — the on-disk brain.
 //
 // Everything the factory knows lives in files, never only in a context window.
 // A session can die at any token count and the next one resumes from here with
 // zero loss. That is the whole point: context is a cache, the workspace is truth.
 //
 // The workspace lives under the OS temp directory by default, keyed by the
-// project path — see lib/workspace.mjs for why, and for the two opt-outs.
+// project path — see lib/workspace.ts for why, and for the two opt-outs.
 //
 // Layout (inside the workspace):
 //   FACTORY.md      durable charter: what this product is, how we work
@@ -17,16 +17,16 @@
 //       evidence/   verification output, screenshots, logs
 //
 // Usage:
-//   node state.mjs init [--root DIR] [--in-project]
-//   node state.mjs show                       → JSON snapshot for the agent
-//   node state.mjs start <slug> [--title T]   → begin a unit of work
-//   node state.mjs phase <phase>              → advance the pipeline (not `done` — that is `finish`)
-//   node state.mjs slice <done>/<total>
-//   node state.mjs note <kind> <text...>      → ruling|unfinished|risk|decision|evidence
-//   node state.mjs resolve <n>                → close an open unfinished item
-//   node state.mjs tick <event> [count]       → count a session event (read|edit|slice|fix|subagent)
-//   node state.mjs handoff                    → freeze session, emit handoff path
-//   node state.mjs finish                     → close the current work
+//   node state.ts init [--root DIR] [--in-project]
+//   node state.ts show                       → JSON snapshot for the agent
+//   node state.ts start <slug> [--title T]   → begin a unit of work
+//   node state.ts phase <phase>              → advance the pipeline (not `done` — that is `finish`)
+//   node state.ts slice <done>/<total>
+//   node state.ts note <kind> <text...>      → ruling|unfinished|risk|decision|evidence
+//   node state.ts resolve <n>                → close an open unfinished item
+//   node state.ts tick <event> [count]       → count a session event (read|edit|slice|fix|subagent)
+//   node state.ts handoff                    → freeze session, emit handoff path
+//   node state.ts finish                     → close the current work
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -412,7 +412,7 @@ function pressure(s: State): Pressure {
         'HANDOFF_NOW — session caps exceeded (' +
         over.join(', ') +
         '). Do NOT start new work and do NOT compress your remaining work to fit. ' +
-        'Run `state.mjs handoff`, write the handoff file completely, then tell the user to /clear and resume.',
+        'Run `state.ts handoff`, write the handoff file completely, then tell the user to /clear and resume.',
     }
   }
   if (near.length) {
@@ -440,7 +440,7 @@ function snapshot(s: State | null) {
       root: ROOT,
       workspace: DIR,
       initialized: false,
-      directive: 'NOT_INITIALIZED — run `node scripts/state.mjs init` and write FACTORY.md before any build work.',
+      directive: 'NOT_INITIALIZED — run `node scripts/state.ts init` and write FACTORY.md before any build work.',
     }
   }
   const workDir = s.work ? path.join(P.work, s.work.slug) : null
@@ -513,7 +513,7 @@ try {
 
     case 'start': {
       const slug = positional[1]
-      if (!slug) throw new Fail({ ok: false, error: 'usage: state.mjs start <slug> [--title "..."]' })
+      if (!slug) throw new Fail({ ok: false, error: 'usage: state.ts start <slug> [--title "..."]' })
       const title = flags.title ?? slug
       const s = withLock((): State => {
         const st = readStateOrBlank()
@@ -542,7 +542,7 @@ try {
         throw new Fail({
           ok: false,
           error:
-            'refusing to set phase `done` directly — run `state.mjs finish`, which enforces the open-items ' +
+            'refusing to set phase `done` directly — run `state.ts finish`, which enforces the open-items ' +
             'guard and records the completion',
         })
       }
@@ -564,7 +564,7 @@ try {
       const doneArg = m?.[1]
       const totalArg = m?.[2]
       if (doneArg === undefined || totalArg === undefined) {
-        throw new Fail({ ok: false, error: 'usage: state.mjs slice <done>/<total>' })
+        throw new Fail({ ok: false, error: 'usage: state.ts slice <done>/<total>' })
       }
       const s = withLock((): State => {
         const st = readState()
@@ -584,7 +584,7 @@ try {
       if (!isNoteKind(kind) || !text) {
         throw new Fail({
           ok: false,
-          error: `usage: state.mjs note <${NOTE_KINDS.join('|')}> <text> — for text that starts with a dash, put any flags first and the text after \`--\``,
+          error: `usage: state.ts note <${NOTE_KINDS.join('|')}> <text> — for text that starts with a dash, put any flags first and the text after \`--\``,
         })
       }
       const recorded = withLock((): { n: number; openCount: number } => {
@@ -604,7 +604,7 @@ try {
       const arg = positional[1]
       // A non-numeric argument used to report ok:true having closed nothing.
       const n = arg === undefined ? Number.NaN : Number(arg)
-      if (!Number.isInteger(n)) throw new Fail({ ok: false, error: 'usage: state.mjs resolve <n>' })
+      if (!Number.isInteger(n)) throw new Fail({ ok: false, error: 'usage: state.ts resolve <n>' })
       const closed = withLock((): { resolved: boolean; openCount: number } => {
         const st = readState()
         const before = st.open.length
@@ -628,7 +628,7 @@ try {
       // the accumulated total and silently dropping an active HANDOFF_NOW back
       // to CONTINUE. `=== undefined` also keeps an explicit `tick read 0` at 0.
       if (!isSessionEvent(ev) || !Number.isFinite(inc) || inc < 0) {
-        throw new Fail({ ok: false, error: `usage: state.mjs tick <${Object.keys(SESSION_CAPS).join('|')}> [count]` })
+        throw new Fail({ ok: false, error: `usage: state.ts tick <${Object.keys(SESSION_CAPS).join('|')}> [count]` })
       }
       const ticked = withLock((): { counts: Partial<Record<SessionEvent, number>>; pressure: Pressure } => {
         const st = readState()

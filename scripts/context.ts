@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// factory/context.mjs — session bootstrap. Run once, at the top of a session.
+// factory/context.ts — session bootstrap. Run once, at the top of a session.
 //
 // It reads the durable truth off disk (charter, state, ledger, git) and emits
 // directives. The agent follows the directives instead of guessing what phase
@@ -11,7 +11,7 @@
 // benign value. A confident falsehood is worse than a gap: the gap gets asked
 // about, the falsehood gets acted on.
 //
-// Usage: node context.mjs [--root DIR] [--brief]
+// Usage: node context.ts [--root DIR] [--brief]
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -262,7 +262,7 @@ if (stateFile.kind === 'corrupt') {
 } else if (stateFile.kind === 'missing') {
   directives.push({
     code: 'NOT_INITIALIZED',
-    say: 'This project has no factory yet. Run `node <skill>/scripts/state.mjs init`, then read reference/init.md and write FACTORY.md with the user before any build work.',
+    say: 'This project has no factory yet. Run `node <skill>/scripts/state.ts init`, then read reference/init.md and write FACTORY.md with the user before any build work.',
   })
 } else {
   if (!hasCharter) {
@@ -277,7 +277,7 @@ if (stateFile.kind === 'corrupt') {
     // handoff of finished work and forbidding it to touch the earlier phases.
     directives.push({
       code: 'WORK_COMPLETE',
-      say: `Work "${s.work.title}" is finished — phase \`done\`, nothing in flight. Do not resume or reopen it uninvited. Start the next unit with \`state.mjs start <slug> --title "..."\` when the user names one.`,
+      say: `Work "${s.work.title}" is finished — phase \`done\`, nothing in flight. Do not resume or reopen it uninvited. Start the next unit with \`state.ts start <slug> --title "..."\` when the user names one.`,
     })
   } else if (s?.work) {
     directives.push({
@@ -287,7 +287,7 @@ if (stateFile.kind === 'corrupt') {
   } else {
     directives.push({
       code: 'NO_ACTIVE_WORK',
-      say: 'No active unit of work. Start one with `state.mjs start <slug> --title "..."` before entering the pipeline.',
+      say: 'No active unit of work. Start one with `state.ts start <slug> --title "..."` before entering the pipeline.',
     })
   }
   if (s?.open.length) {

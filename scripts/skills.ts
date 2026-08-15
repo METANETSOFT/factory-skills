@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// factory/skills.mjs — the skill tree resolver.
+// factory/skills.ts — the skill tree resolver.
 //
 // The factory does not reimplement design taste, animation craft, doc lookup or
 // debugging discipline. It routes to the skills that already own those jobs.
@@ -7,11 +7,11 @@
 // skills exist on this machine, which are missing, and how do I get them.
 //
 // Usage:
-//   node skills.mjs list                     → every skill installed here
-//   node skills.mjs jobs                     → job kinds this factory routes
-//   node skills.mjs resolve <job> [--json]   → what to load for that job
-//   node skills.mjs fetch <external-id>      → install an external skill from GitHub
-//   node skills.mjs doctor                   → coverage report across all jobs
+//   node skills.ts list                     → every skill installed here
+//   node skills.ts jobs                     → job kinds this factory routes
+//   node skills.ts resolve <job> [--json]   → what to load for that job
+//   node skills.ts fetch <external-id>      → install an external skill from GitHub
+//   node skills.ts doctor                   → coverage report across all jobs
 
 import fs from 'node:fs'
 import path from 'node:path'

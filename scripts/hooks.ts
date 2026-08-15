@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// factory/hooks.mjs — turning the Laws from suggestions into enforcement.
+// factory/hooks.ts — turning the Laws from suggestions into enforcement.
 //
 // A rule written in a skill is a rule the model can rationalise away at 80%
 // context; that is a documented failure mode, not a character flaw. A hook runs
@@ -11,14 +11,14 @@
 //
 // and, when the project has opted in, runs its own verify command.
 //
-// Opt-in, project-scoped, and removable — `hooks.mjs off` takes it out cleanly.
+// Opt-in, project-scoped, and removable — `hooks.ts off` takes it out cleanly.
 // A hook the user did not ask for is worse than no hook.
 //
 // Usage:
-//   node hooks.mjs status
-//   node hooks.mjs on [--verify "npm test"]     install into <project>/.claude/settings.json
-//   node hooks.mjs off
-//   node hooks.mjs gate                         (invoked by the hook itself; reads stdin)
+//   node hooks.ts status
+//   node hooks.ts on [--verify "npm test"]     install into <project>/.claude/settings.json
+//   node hooks.ts off
+//   node hooks.ts gate                         (invoked by the hook itself; reads stdin)
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -361,7 +361,7 @@ function gate(): void {
     'factory stop-gate blocked this turn.\n\n' +
       findings.map((f) => '  - ' + f).join('\n') +
       '\n\nFix these, or — if the work genuinely cannot be completed now — remove the marker and ' +
-      'record it with `state.mjs note unfinished "<what and why>"`, then say so plainly to the user. ' +
+      'record it with `state.ts note unfinished "<what and why>"`, then say so plainly to the user. ' +
       'Law 3: unfinished work gets named, never hidden.\n',
   )
   process.exit(2)
@@ -466,7 +466,7 @@ switch (cmd) {
       // `installed` comes from status() — a literal here was always overwritten
       // by the spread, and claiming it without reading it back would be a guess.
       ...status(),
-      note: 'Project-scoped and removable with `hooks.mjs off`. Tell the user it is now active and what it blocks.',
+      note: 'Project-scoped and removable with `hooks.ts off`. Tell the user it is now active and what it blocks.',
     })
     break
   }

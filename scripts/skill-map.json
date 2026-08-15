@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "note": "Machine-readable twin of reference/skill-map.md. skills.mjs resolves a job kind to the skills that should be loaded before work starts. `prefer` is loaded first and owns the job; `also` is loaded only when its trigger applies; `external` is not installed locally and must be fetched. Nothing here is vendored into the factory — these are references. If a skill is installed, use it; if not, offer the install line; if it cannot be installed, follow its `degrade` note and say out loud that you are on the degraded path.",
+  "note": "Machine-readable twin of reference/skill-map.md. skills.ts resolves a job kind to the skills that should be loaded before work starts. `prefer` is loaded first and owns the job; `also` is loaded only when its trigger applies; `external` is not installed locally and must be fetched. Nothing here is vendored into the factory — these are references. If a skill is installed, use it; if not, offer the install line; if it cannot be installed, follow its `degrade` note and say out loud that you are on the degraded path.",
 
   "registry": {
     "_comment": "Provenance for every skill this map routes to. `source` is recorded ONLY where it is actually known — a guessed repo URL is worse than none, because it sends the user somewhere that does not exist. Where the source is unknown, `find` says how to locate it and `degrade` says what to do without it.",
@@ -23,7 +23,7 @@
     "handoff": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Write the handoff by hand against the fixed schema in reference/context-discipline.md." },
     "code-review": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Dispatch a subagent whose only instruction is to refute the diff." },
     "security-review": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Review auth, secrets, input handling and network boundaries by hand against the diff." },
-    "simplify": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Run `slop.mjs check` and consolidate what it names." },
+    "simplify": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Run `slop.ts check` and consolidate what it names." },
     "run": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Start the app yourself and capture the output as evidence." },
     "dataviz": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Pick one chart form per question, label axes, and keep the palette to one accent." },
     "loop": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Drive the loop from reference/loop.md with an explicit stop condition." },
@@ -264,13 +264,13 @@
     "humanlayer-codebase-design": {
       "what": "Deep-module design vocabulary: module, interface, depth, seam, adapter, leverage, locality. Plus the deletion test and design-it-twice.",
       "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/codebase-design",
-      "install": "node scripts/skills.mjs fetch humanlayer-codebase-design",
+      "install": "node scripts/skills.ts fetch humanlayer-codebase-design",
       "why": "This is the vocabulary the program-design layer is written in. Without it the layer degenerates into restating the architecture."
     },
     "humanlayer-improve-codebase-architecture": {
       "what": "Scan a codebase for deepening opportunities, report them, then work through one.",
       "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/improve-codebase-architecture",
-      "install": "node scripts/skills.mjs fetch humanlayer-improve-codebase-architecture"
+      "install": "node scripts/skills.ts fetch humanlayer-improve-codebase-architecture"
     },
     "humanlayer-show-me": {
       "what": "Explain the current topic visually — diagrams, code-shape sketches, focused HTML.",

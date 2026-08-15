@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// factory/slop.mjs — the measured structural checkpoint.
+// factory/slop.ts — the measured structural checkpoint.
 //
 // Why this exists rather than another paragraph of instructions:
 // SlopCodeBench (arXiv:2603.24755) chained agents' own output forward across 93
@@ -24,9 +24,9 @@
 // works — that is what `verify` is for.
 //
 // Usage:
-//   node slop.mjs scan [path...] [--json] [--top N]
-//   node slop.mjs baseline [path...]        record the current numbers as this project's line
-//   node slop.mjs check [path...]           scan, compare to baseline, exit 1 if a threshold is crossed
+//   node slop.ts scan [path...] [--json] [--top N]
+//   node slop.ts baseline [path...]        record the current numbers as this project's line
+//   node slop.ts check [path...]           scan, compare to baseline, exit 1 if a threshold is crossed
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -750,7 +750,7 @@ switch (cmd) {
       if (r.delta.erosion > 0.05) breaches.push(`erosion rose ${r.delta.erosion.toFixed(3)} since baseline (limit 0.05)`)
       if (r.delta.verbosity > 0.03) breaches.push(`verbosity rose ${r.delta.verbosity.toFixed(3)} since baseline (limit 0.03)`)
     } else {
-      breaches.push('no baseline recorded — run `slop.mjs baseline` before implementing so drift is measurable')
+      breaches.push('no baseline recorded — run `slop.ts baseline` before implementing so drift is measurable')
     }
     if (r.erosion > 0.68) breaches.push(`erosion ${r.erosion.toFixed(3)} is at the measured agent-drift level (0.68)`)
     if (r.verbosity > 0.32) breaches.push(`verbosity ${r.verbosity.toFixed(3)} is at the measured agent-drift level (0.32)`)

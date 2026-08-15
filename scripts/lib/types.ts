@@ -60,8 +60,6 @@ export interface State {
   open: OpenItem[]
   history: Array<{ at: string; phase: Phase }>
   seq: number
-  /** Set when state.json could not be parsed, so callers can report rather than guess. */
-  corrupt?: string
 }
 
 export type PressureLevel = 'ok' | 'warn' | 'handoff'

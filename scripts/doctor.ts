@@ -140,6 +140,39 @@ for (const f of refFiles) {
   }
 }
 
+// --- the skill's own files ----------------------------------------------------
+
+// The same dead pointer can sit in the skill's own source and docs: a usage
+// line that names a pre-TypeScript filename sends the reader after a file that
+// is gone, and while this scan covered only the playbooks the scripts' own
+// headers carried exactly that. Only this skill's former names count — an
+// extension in a scanner's table, or an example hook the user writes under
+// .claude/hooks, is legitimate and stays silent.
+const OWN_MJS = /\b(?:state|skills|slop|hooks|doctor|context|workspace|run)\.mjs\b/g
+
+const ownFiles: Array<{ where: string; file: string }> = [...scriptFiles]
+  .sort()
+  .map((f) => ({ where: `scripts/${f}`, file: path.join(HERE, f) }))
+const libDir = path.join(HERE, 'lib')
+if (fs.existsSync(libDir)) {
+  for (const f of fs.readdirSync(libDir).filter((x) => x.endsWith('.ts')).sort()) {
+    ownFiles.push({ where: `scripts/lib/${f}`, file: path.join(libDir, f) })
+  }
+}
+// The map routes the agent, and its install lines are run verbatim — a stale
+// filename there is a live dead pointer, not stale prose.
+ownFiles.push({ where: 'skill-map.json', file: path.join(HERE, 'skill-map.json') })
+for (const f of ['SKILL.md', 'README.md']) {
+  const p = path.join(BASE, f)
+  if (fs.existsSync(p)) ownFiles.push({ where: f, file: p })
+}
+
+for (const { where, file } of ownFiles) {
+  for (const m of fs.readFileSync(file, 'utf8').matchAll(OWN_MJS)) {
+    add(where, `stale filename from before the TypeScript conversion: ${group(m, 0)}`)
+  }
+}
+
 // --- skill map ----------------------------------------------------------------
 
 for (const [job, spec] of Object.entries(map.jobs)) {

@@ -928,6 +928,27 @@ describe('hooks', () => {
   })
 })
 
+/** A throwaway copy of the skill, so doctor can be pointed at a tree broken on purpose. */
+const stageSkill = (): string => {
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-doctor-'))
+  for (const d of ['scripts', 'scripts/lib', 'reference']) fs.mkdirSync(path.join(stage, d), { recursive: true })
+  for (const f of fs.readdirSync(SCRIPTS)) {
+    const src = path.join(SCRIPTS, f)
+    if (fs.statSync(src).isDirectory()) continue
+    fs.copyFileSync(src, path.join(stage, 'scripts', f))
+  }
+  for (const f of fs.readdirSync(path.join(SCRIPTS, 'lib'))) {
+    fs.copyFileSync(path.join(SCRIPTS, 'lib', f), path.join(stage, 'scripts/lib', f))
+  }
+  for (const f of fs.readdirSync(path.join(path.dirname(SCRIPTS), 'reference'))) {
+    fs.copyFileSync(path.join(path.dirname(SCRIPTS), 'reference', f), path.join(stage, 'reference', f))
+  }
+  for (const f of ['SKILL.md', 'README.md']) {
+    fs.copyFileSync(path.join(path.dirname(SCRIPTS), f), path.join(stage, f))
+  }
+  return stage
+}
+
 describe('doctor', () => {
   t('the skill passes its own integrity check', () => {
     const r = run('doctor.ts', ['--json'])
@@ -938,25 +959,48 @@ describe('doctor', () => {
 
   t('doctor exits non-zero when a playbook link is broken', () => {
     // Prove the check can fail, not just that it passes today.
-    const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-doctor-'))
-    for (const d of ['scripts', 'scripts/lib', 'reference']) fs.mkdirSync(path.join(stage, d), { recursive: true })
-    for (const f of fs.readdirSync(SCRIPTS)) {
-      const src = path.join(SCRIPTS, f)
-      if (fs.statSync(src).isDirectory()) continue
-      fs.copyFileSync(src, path.join(stage, 'scripts', f))
-    }
-    for (const f of fs.readdirSync(path.join(SCRIPTS, 'lib'))) {
-      fs.copyFileSync(path.join(SCRIPTS, 'lib', f), path.join(stage, 'scripts/lib', f))
-    }
-    for (const f of fs.readdirSync(path.join(path.dirname(SCRIPTS), 'reference'))) {
-      fs.copyFileSync(path.join(path.dirname(SCRIPTS), 'reference', f), path.join(stage, 'reference', f))
-    }
-    fs.copyFileSync(path.join(path.dirname(SCRIPTS), 'SKILL.md'), path.join(stage, 'SKILL.md'))
+    const stage = stageSkill()
     fs.unlinkSync(path.join(stage, 'reference/verify.md'))
     const r = spawnSync('node', [path.join(stage, 'scripts/doctor.ts'), '--json'], { encoding: 'utf8' })
     const d: DoctorReport = JSON.parse(r.stdout)
     eq(r.status, 1, 'doctor should fail on a missing playbook')
     assert(d.problems.some((p) => /verify\.md/.test(p.msg)), 'the missing playbook was not named')
+  })
+
+  t('a stale pre-TypeScript filename in the scripts themselves is flagged', () => {
+    // The scan used to read only the playbooks, so dead pointers lived on in
+    // the scripts' own headers. A hook filename the user writes is not one of
+    // the skill's former names and must not be flagged.
+    const stage = stageSkill()
+    fs.appendFileSync(path.join(stage, 'scripts/state.ts'), '\n//   node scripts/state.mjs init\n')
+    fs.appendFileSync(path.join(stage, 'scripts/hooks.ts'), '\n// example hook you write yourself: node .claude/hooks/format-edited.mjs\n')
+    const r = spawnSync('node', [path.join(stage, 'scripts/doctor.ts'), '--json'], { encoding: 'utf8' })
+    const d: DoctorReport = JSON.parse(r.stdout)
+    eq(r.status, 1, 'doctor should fail on a stale filename in a script header')
+    assert(
+      d.problems.some((p) => p.where === 'scripts/state.ts' && /state\.mjs/.test(p.msg)),
+      'the stale reference in scripts/state.ts was not named',
+    )
+    assert(!d.problems.some((p) => /format-edited/.test(p.msg)), 'a hook the user writes was flagged as stale')
+  })
+
+  t('a stale pre-TypeScript filename in skill-map.json is flagged', () => {
+    // The map routes the agent and its install lines are run verbatim, so a
+    // dead pointer there is the worst kind. Inject one while keeping the JSON
+    // valid, and expect doctor to name the file.
+    const stage = stageSkill()
+    const mapFile = path.join(stage, 'scripts/skill-map.json')
+    fs.writeFileSync(
+      mapFile,
+      fs.readFileSync(mapFile, 'utf8').replace('skills.ts resolves a job kind', 'skills.mjs resolves a job kind'),
+    )
+    const r = spawnSync('node', [path.join(stage, 'scripts/doctor.ts'), '--json'], { encoding: 'utf8' })
+    const d: DoctorReport = JSON.parse(r.stdout)
+    eq(r.status, 1, 'doctor should fail on a stale filename in skill-map.json')
+    assert(
+      d.problems.some((p) => p.where === 'skill-map.json' && /skills\.mjs/.test(p.msg)),
+      'the stale reference in skill-map.json was not named',
+    )
   })
 })
 
