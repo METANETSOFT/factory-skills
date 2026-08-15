@@ -29,6 +29,7 @@
     "loop": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Drive the loop from reference/loop.md with an explicit stop condition." },
     "schedule": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Ask the user to run the loop manually, or generate a cron/GitHub Actions workflow." },
     "artifact-design": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Write the deliverable as a plain markdown file and hand over the path." },
+    "artifact-diagramming": { "source": "bundled with Claude Code", "install": "built in", "degrade": "Use a Mermaid fenced block — it renders in markdown and in published artifacts with no external library. Draw the mechanism, not the box-and-arrow restatement of the headings." },
 
     "_provenance_warning": "The community design/motion skills below circulate as copies. A GitHub search for any of their names returns many mirrors and forks with no single authoritative upstream, and the skill files themselves record no source. So each entry gives a SEARCH that will find current copies rather than a URL that might point at an abandoned fork. Verify what you find before installing it: read its SKILL.md, and never run an install command from a repo you have not opened.",
 

@@ -1,61 +1,76 @@
 # No-argument routing: the context-aware menu
 
-Read this when the user types `/factory` with nothing after it. They are asking "what should I do next here?" Answer it from the state that is actually on disk, then show the full menu. **Never auto-run a command.** A phase you start uninvited spends the user's tokens on work they may not have wanted, and every phase writes an artifact that anchors everything downstream — a wrong `PRD.md` propagates into an architecture nobody asked for.
+`/factory` with nothing after it is the user asking "what should I do next here?". You answer it from state already on disk, and you hand the turn back. **Never run a command the user did not name.** Every pipeline command writes an artifact that anchors everything downstream, so a `PRD.md` you started uninvited becomes an architecture nobody asked for — and the user cannot tell a menu that mutated state from a menu that lied.
 
-## What you already have
+Law 8 (rulings, not stalls) does not licence starting one. It governs ambiguity *inside* a running pipeline; an empty invocation is not ambiguity, it is a request for options, and answering it by picking is the failure it looks like a cure for.
 
-Setup ran `context.mjs --brief`. It gave you: root, `phase`, active work title, `slice done/total`, git branch and dirty count, and a list of directive codes. **Do not re-run it, and do not re-derive what it told you.**
+## Your budget for this turn
 
-One optional extra call, only if you need the *text* of open items or the session counters:
+Setup already ran `context.mjs --brief`. It printed root, `phase`, work title, `slice done/total`, branch with dirty count, and one `[CODE] text` line per directive. **Do not re-run it and do not re-derive what it said.** If it has not run in this session, run it once now — everything below keys off its codes.
+
+The complete directive set is `NOT_INITIALIZED` `NO_CHARTER` `RESUME` `NO_ACTIVE_WORK` `OPEN_ITEMS` `DIRTY_DEFAULT_BRANCH` `NO_TEST_COMMAND`. There are no others. Do not invent a code to justify a recommendation.
+
+One optional second call, and it is the only one that earns its cost:
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/scripts/state.mjs show
 ```
 
-That is the entire budget for this turn. Do not scan the codebase, do not read source files, do not run `slop.mjs scan` — a menu that costs a full repo scan is a phase in disguise.
+It writes nothing and returns exactly what the tables below need: `artifacts` (present/bytes for `RESEARCH.md` `PRD.md` `ARCHITECTURE.md` `PROGRAM-DESIGN.md` `PLAN.md` `HANDOFF.md`), `openItems` with their text, `nextPhase`, and `pressure`. Without it the "only if the artifact exists" gates below are guesses, and a recommendation to advance a phase whose input was never written is how a plan gets built on an architecture that does not exist.
 
-## Reason over the signals, in this precedence order
+**Ceiling: two Bash calls, one optional Read of `.factory/slop-baseline.json`, zero source files, zero subagents.** Do not run `slop.mjs check`, do not grep the codebase, do not open `PLAN.md` "to see where we got to". A menu that costs a repo scan is a phase in disguise; the user asked what to do, not for it to be done.
 
-Several will fire at once. Take the first that applies as pick 1, then the next two that still make sense. Stop at three.
+## Precedence
 
-| Rank | Signal | Lead with | Reason line names |
+Several signals fire at once. Take the first that applies as pick 1, then the next two that still make sense, and stop at three.
+
+| Rank | Checkable signal | Lead with | Reason line must name |
 |---|---|---|---|
-| 1 | `NOT_INITIALIZED` | `/factory init` | there is no charter or state here yet; **offer nothing else** — every other command reads state that does not exist |
-| 2 | `RESUME` and `HANDOFF.md` exists in the work dir | `/factory resume` | the handoff file and the phase it stopped at |
-| 3 | `OPEN_ITEMS` | closing them | the count and the first item's text — these are commitments (Law 3), and `state.mjs finish` refuses while they are open |
-| 4 | `HANDOFF_NOW` in output, or a session counter at its cap | `/factory handoff` | which cap was hit; continuing past it trades quality for closure |
-| 5 | phase + slice imply a continuation | the next pipeline command | the exact phase and slice numbers |
-| 6 | `NO_ACTIVE_WORK` | `/factory research <topic>` | there is no unit of work, so nothing is being tracked |
-| 7 | `DIRTY_DEFAULT_BRANCH` | branching before implementing | the branch name and the dirty file count |
-| 8 | `NO_CHARTER` | `/factory init` | `FACTORY.md` is missing, so a fresh session will re-litigate settled decisions |
-| 9 | `NO_TEST_COMMAND`, and phase is `plan` or later | agreeing a verify command with the user | verify has nothing to run without one |
-| 10 | phase is `plan` or `implement` and `.factory/slop-baseline.json` is absent | `node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline` | drift is unmeasurable without a line to compare against |
+| 1 | `NOT_INITIALIZED` | `/factory init` | there is no state file here — and **offer nothing else**, every other command reads state that does not exist |
+| 2 | `RESUME` and `artifacts["HANDOFF.md"].present` | `/factory resume` | the handoff path and the phase it froze at |
+| 3 | `OPEN_ITEMS` | the command that closes item 1 | the count and item 1's text — these are commitments (Law 3) and `state.mjs finish` exits 1 while any is open |
+| 4 | phase + slice imply a continuation | the next pipeline command | the exact phase name and slice numbers |
+| 5 | `NO_ACTIVE_WORK` | `/factory research <topic>` | nothing is tracked yet, so no artifact has a home |
+| 6 | `DIRTY_DEFAULT_BRANCH` | branching before any implement command | the branch name and the dirty file count |
+| 7 | `NO_CHARTER` with state present | `/factory init` | `FACTORY.md` is missing, so the next fresh session re-litigates settled decisions |
+| 8 | `NO_TEST_COMMAND` and phase is `plan` or later | agreeing a verify command with the user | verify has nothing to run, so its evidence would be prose |
+| 9 | phase is `plan` or `implement` and `.factory/slop-baseline.json` is absent | `node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline` | drift is unmeasurable without a line to compare against |
 
-For rank 10, check the baseline with a single Read of `.factory/slop-baseline.json`; a not-found error is the signal. Do not run `slop.mjs check` to find out — that is a full scan.
+Rank 5 recommends `/factory research <topic>`; **do not run `state.mjs start` yourself** — [research.md](research.md) opens with it, and running it here is a mutation this turn is not allowed to make. Rank 9's check is a single Read of `.factory/slop-baseline.json`; a not-found error *is* the signal. See [anti-slop.md](anti-slop.md).
 
-### Phase continuation (rank 5)
+### Session pressure is carried spend, not yours
 
-| Current phase | Recommend | Only if |
+`show` may report `pressure.level: "handoff"` (`HANDOFF_NOW`) or `"warn"` (`FINISH_CURRENT_SLICE`). Those counters are per unit of work and reset only on `state.mjs start` and `state.mjs handoff`, so at menu time they measure the session that ended, not this one — which has read nothing and edited nothing.
+
+- `handoff` **and** `HANDOFF.md` present → rank 2 already covers it.
+- `handoff` **and** `HANDOFF.md` absent → the previous session died without handing off. **Do not recommend `/factory handoff`.** You did not do that work, so the document you wrote would be invented — Law 1 with a filename attached. Lead with the phase continuation and say in one line that the counters are carried, and that the record of that session is the ledger plus the artifacts on disk.
+- `warn` → print the number in the status line. It demotes nothing.
+
+### Phase continuation (rank 4)
+
+| Current phase | Recommend | Only if `show` reports |
 |---|---|---|
-| `research` | `/factory product` | `RESEARCH.md` exists |
-| `product` | `/factory architecture` | `PRD.md` exists |
-| `architecture` | `/factory program-design` | `ARCHITECTURE.md` exists |
-| `program-design` | `/factory plan` | `PROGRAM-DESIGN.md` exists |
-| `plan` | `/factory implement` | `PLAN.md` exists and lists slices |
+| `research` | `/factory product` | `RESEARCH.md` present |
+| `product` | `/factory architecture` | `PRD.md` present |
+| `architecture` | `/factory program-design` | `ARCHITECTURE.md` present |
+| `program-design` | `/factory plan` | `PROGRAM-DESIGN.md` present |
+| `plan` | `/factory implement` | `PLAN.md` present and `slice.total > 0` |
 | `implement`, `done < total` | `/factory implement` | say "slice `<done+1>` of `<total>`" |
-| `implement`, `done == total` | `/factory verify` | every slice is committed |
-| `verify` | `/factory review` | `evidence/` has files in it |
-| `review` | `node ${CLAUDE_SKILL_DIR}/scripts/state.mjs finish` | no open items |
+| `implement`, `done == total` | `/factory verify` | every slice committed |
+| `verify` | `/factory review` | `evidence/` is non-empty |
+| `review` | `node ${CLAUDE_SKILL_DIR}/scripts/state.mjs finish` | `openCount == 0` |
 | `done` | `/factory research <topic>` for the next unit | — |
 
-**If the phase marker is set but its artifact is missing, recommend re-running that phase, not the next one.** A phase advanced without its artifact means the next phase would design against nothing, and that is how a plan gets built on an architecture that was never written down.
+**If the phase marker is set but its artifact is absent, recommend re-running that phase, never the next one.** A phase advanced without its artifact means the next phase designs against nothing.
+
+**Never recommend a command whose input artifact is missing.** Jumping to `implement` without `PROGRAM-DESIGN.md` violates Law 5: a call-stack sketch costs a few hundred tokens, re-steering two thousand written lines costs the session.
 
 ## The menu you print
 
-One block. Fill every angle bracket from real state; never print a placeholder.
+One block. Fill every angle bracket from real state; never print a bracket you could not fill.
 
 ```
-factory — <phase | not initialized> · <work title | no active work> · slice <done>/<total> · <branch><, N dirty>
+factory — <phase | not initialized> · <work title | no active work> · slice <done>/<total> · <branch><, N dirty> · <N open>
 
 Recommended
   1. <exact command text>          <one line: the observed fact that makes this the next move>
@@ -69,55 +84,53 @@ Session    /factory status · handoff · resume · skills · init
 Say a number or type a command.
 ```
 
-Then stop and wait. The closing line is load-bearing: it makes clear the recommendation is a suggestion the user confirms, not a plan you are already executing.
+Then stop and wait. The closing line is load-bearing: it is what makes the three picks a suggestion the user confirms rather than a plan already running.
 
-## Rules for the recommendation lines
+## Rules for the three recommendation lines
 
-**Every reason cites something you observed.** "Research is a good first step" is unfalsifiable and teaches the user to skip the menu; "no `RESEARCH.md` and no active work — nothing is tracked yet" is checkable against the same output they can read. Numbers beat adjectives: name the slice count, the branch, the open-item count.
+**Every reason cites something you observed in this turn's output.** "Research is a good first step" is unfalsifiable and teaches the user to skip the menu. "No `RESEARCH.md` and no active work — nothing is tracked yet" is checkable against text they can read. Prefer numbers: the slice count, the branch, the open-item count.
 
-**Three picks maximum, ordered strongest first.** Eleven equal options is the same as no recommendation — the user then does the routing you were asked to do.
+**Three maximum, strongest first.** Nine equal options is the same as no recommendation — the user then does the routing they asked you to do.
 
-**Never recommend a phase whose input artifact does not exist.** Jumping to `implement` without `PROGRAM-DESIGN.md` violates Law 5, and re-steering two thousand written lines costs the session that a call-stack sketch would have cost a few hundred tokens.
+**Do not recommend `research` while `RESUME` is live.** Earlier phases already ran and their output is on disk; re-running them spends the user's money to rediscover what the files say.
 
-**Do not recommend `research` when a `RESUME` directive is live.** Earlier phases already happened and their output is on disk; re-running them burns the user's money to rediscover what the files already say.
+**Skipping a phase is the user's call, not yours.** If their pick skips one, name the phase being skipped and why it is acceptable, record it with `state.mjs note decision "..."` *in that command's turn, not this one*, and continue. Do not argue twice.
 
-**Skipping is a user decision, not yours.** If they pick a command that skips a phase, say which phase is being skipped and why it is acceptable, record it with `state.mjs note decision "..."`, and continue. Do not argue twice.
+## The full command set
 
-## Command reference (the full menu, expanded)
+| Group | Command | Does | Playbook |
+|---|---|---|---|
+| Pipeline | `/factory research <topic>` | what is true about this codebase and problem now | [research.md](research.md) |
+| Pipeline | `/factory product` | user problem and success measure → `PRD.md` | [product.md](product.md) |
+| Pipeline | `/factory architecture` | services, flow, endpoints, tables → `ARCHITECTURE.md` | [architecture.md](architecture.md) |
+| Pipeline | `/factory program-design` | call stack, file placement, signatures, tests | [program-design.md](program-design.md) |
+| Pipeline | `/factory plan` | vertical slices in order → `PLAN.md` | [slice.md](slice.md) |
+| Pipeline | `/factory implement [slice]` | one slice, fresh subagent, committed | [implement.md](implement.md) |
+| Pipeline | `/factory verify` | evidence that it works → `evidence/` | [verify.md](verify.md) |
+| Pipeline | `/factory review` | adversarial pass over the diff | [verify.md](verify.md) |
+| Jobs | `/factory design <target>` | interface, visual or motion work | [design.md](design.md) |
+| Jobs | `/factory marketing <target>` | positioning, copy, launch, docs | [marketing.md](marketing.md) |
+| Jobs | `/factory debug <symptom>` | mechanism before fix | [debug.md](debug.md) |
+| Jobs | `/factory loop <goal>` | unattended iteration toward a measurable target | [loop.md](loop.md) |
+| Session | `/factory init` | write `FACTORY.md`, the durable charter | [init.md](init.md) |
+| Session | `/factory status` | `state.mjs show`, reported plainly | — |
+| Session | `/factory handoff` | freeze the session into a resumable document | [context-discipline.md](context-discipline.md) |
+| Session | `/factory resume` | read the handoff and continue | [context-discipline.md](context-discipline.md) |
+| Session | `/factory skills` | `skills.mjs doctor` — what the tree reaches from here | [skill-map.md](skill-map.md) |
 
-| Command | Does | Playbook |
-|---|---|---|
-| `/factory init` | write `FACTORY.md`, the durable charter | [init.md](init.md) |
-| `/factory research <topic>` | what is true about this codebase and problem now | [research.md](research.md) |
-| `/factory product` | user problem and success measure → `PRD.md` | [product.md](product.md) |
-| `/factory architecture` | services, flow, endpoints, tables → `ARCHITECTURE.md` | [architecture.md](architecture.md) |
-| `/factory program-design` | call stack, file placement, signatures, tests | [program-design.md](program-design.md) |
-| `/factory plan` | vertical slices in order → `PLAN.md` | [slice.md](slice.md) |
-| `/factory implement [slice]` | one slice, fresh subagent, committed | [implement.md](implement.md) |
-| `/factory verify` | evidence that it works → `evidence/` | [verify.md](verify.md) |
-| `/factory review` | adversarial pass over the diff | [verify.md](verify.md) |
-| `/factory design <target>` | interface, visual or motion work | [design.md](design.md) |
-| `/factory marketing <target>` | positioning, copy, launch, docs | [marketing.md](marketing.md) |
-| `/factory debug <symptom>` | mechanism before fix | [debug.md](debug.md) |
-| `/factory loop <goal>` | unattended iteration toward a measurable target | [loop.md](loop.md) |
-| `/factory status` | `state.mjs show`, reported plainly | — |
-| `/factory handoff` | freeze the session into a resumable document | [context-discipline.md](context-discipline.md) |
-| `/factory resume` | read the handoff and continue | [context-discipline.md](context-discipline.md) |
-| `/factory skills` | `skills.mjs doctor` — what the tree reaches from here | [skill-map.md](skill-map.md) |
-
-Instruments the user may want named directly, all pre-approved:
+Instruments the user may name directly; all are pre-approved by `allowed-tools`:
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs show          # full JSON snapshot
-node ${CLAUDE_SKILL_DIR}/scripts/state.mjs finish        # close the current work
+node ${CLAUDE_SKILL_DIR}/scripts/state.mjs show          # JSON snapshot, writes nothing
+node ${CLAUDE_SKILL_DIR}/scripts/state.mjs finish        # close the work; exits 1 if items are open
 node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs baseline       # record this project's structural line
 node ${CLAUDE_SKILL_DIR}/scripts/slop.mjs check          # scan against it, exit 1 on drift
-node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs status        # is the Stop-gate hook installed
-node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve <job>
+node ${CLAUDE_SKILL_DIR}/scripts/hooks.mjs status        # is the Stop-gate hook installed  → hooks.md
+node ${CLAUDE_SKILL_DIR}/scripts/skills.mjs resolve <job>  # which skills own a job (Law 9)
 ```
 
 ## Exit condition
 
-Checkable before you hand the turn back: **at most three recommendations, each with an exact command string and a reason naming a fact from the brief; the full menu printed; and zero mutations this turn** — no phase advanced, no artifact written, no `state.mjs` command other than `show`, no subagent dispatched.
+Before handing the turn back, all five must hold: **at most three recommendations**; **each carries an exact command string** the user can copy; **each reason names a value you read this turn** (a directive code, an artifact flag, a count, a branch); **the full menu block is printed with no unfilled brackets**; and **nothing mutated** — no phase advanced, no artifact written, no `state.mjs` subcommand other than `show`, no subagent dispatched, no git operation.
 
-If the user's next message is a plain build request rather than a menu pick, do not reprint the menu — follow SKILL.md's Routing and enter the pipeline at the implied phase, saying which phase and why.
+If the user's next message is a plain build request rather than a menu pick, do not reprint this menu — follow SKILL.md's Routing, enter the pipeline at the phase the request implies, and say which phase and why.

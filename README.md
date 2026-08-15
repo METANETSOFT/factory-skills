@@ -173,6 +173,19 @@ guessed repository link is worse than none.
 
 ---
 
+## Tests
+
+```bash
+node test/run.mjs          # everything
+node test/run.mjs slop     # one group: state | skills | slop | hooks | context
+```
+
+No framework and no dependencies; each test builds a throwaway project under the system temp
+directory. The suite exists because Law 1 applies to this skill's own code — the lexer in `slop.mjs`
+is asserted against braces hidden in template literals, block comments and regex literals, and the
+Stop gate is asserted against a real git diff, a test file, an unborn repo, empty stdin, and the
+re-entry guard that stops a blocking hook trapping a session in a loop.
+
 ## The Laws
 
 Ten standing rules that hold for the whole session, not just the turn that loaded them. In short:

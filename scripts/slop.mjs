@@ -460,6 +460,10 @@ function scan() {
   return {
     ok: true,
     root: ROOT,
+    // What was actually measured. Without this the header reports the project
+    // root even when the scan was narrowed to one directory, which quietly
+    // invites comparing two numbers taken over different file sets.
+    scanned: targets.length ? targets.map((t) => path.resolve(t)) : [ROOT],
     files: files.length,
     loc,
     // Erosion is complexity-mass weighted, so in a small codebase two or three
@@ -494,8 +498,10 @@ function report(r) {
     return
   }
   const L = []
-  L.push(`slop scan @ ${r.root}`)
+  const scope = (r.scanned || [r.root]).map((s) => path.relative(r.root, s) || '.').join(' ')
+  L.push(`slop scan @ ${r.root}${scope === '.' ? '' : `  (scope: ${scope})`}`)
   L.push(`${r.files} files, ${r.loc} LOC`)
+  if (scope !== '.') L.push('scoped scan — do not compare this against a baseline taken over the whole project')
   L.push(`erosion   ${r.erosion.toFixed(3)}   (human repos ~0.31, agent drift ~0.68)`)
   L.push(`verbosity ${r.verbosity.toFixed(3)}   (human repos ~0.11, agent drift ~0.32)`)
   L.push(`functions with CC>10: ${r.highComplexityCount}   max CC: ${r.maxComplexity}`)
