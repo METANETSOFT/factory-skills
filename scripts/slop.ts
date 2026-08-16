@@ -135,6 +135,11 @@ class Blanker {
   /** Last whole identifier or keyword kept, for the `return /re/` case. */
   lastKeptWord: string
   inWord: boolean
+  /** Set by preserving() for the span of one walker: blank() then emits the
+   *  raw character instead of a blank, so the rule scan keeps string and
+   *  template text readable. Never set pass-wide — the regex and mention
+   *  walkers run through the same blank() and must keep blanking. */
+  preserve: boolean
 
   constructor(src: string) {
     this.src = src
@@ -143,6 +148,7 @@ class Blanker {
     this.lastKept = null // last non-space character actually kept, for regex disambiguation
     this.lastKeptWord = ''
     this.inWord = false
+    this.preserve = false
   }
   get done(): boolean {
     return this.i >= this.src.length
@@ -186,7 +192,7 @@ class Blanker {
     while (n-- > 0 && !this.done) {
       const c = this.at()
       if (c === undefined) return
-      this.out[this.i] = c === '\n' ? '\n' : ' '
+      this.out[this.i] = this.preserve || c === '\n' ? c : ' '
       this.i++
     }
   }
@@ -204,6 +210,18 @@ class Blanker {
   result(): string {
     return this.out.join('')
   }
+}
+
+/** Run a walker with blank() emitting the raw character instead of a blank:
+ *  the span's text stays readable for the rule scan, while the walk itself is
+ *  unchanged and still bounds the span. Scoped to one walker on purpose — a
+ *  pass-wide flag would reach the regex and mention walkers too, and those
+ *  must keep blanking. */
+function preserving(b: Blanker, walk: () => void): void {
+  const was = b.preserve
+  b.preserve = true
+  walk()
+  b.preserve = was
 }
 
 const blankLineComment = (b: Blanker): void => b.blankWhile(() => b.at() !== '\n')
@@ -297,46 +315,47 @@ const REGEX_MAY_FOLLOW_WORD = new Set([
   'void', 'await', 'yield', 'do', 'else', 'throw',
 ])
 
-function blankPython(b: Blanker): void {
-  while (!b.done) {
-    const c = b.at()
-    if (c === '#') {
-      blankLineComment(b)
-    } else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) {
-      blankTripleQuoted(b, c)
-    } else if (c === '"' || c === "'") {
-      blankQuoted(b, c)
-    } else {
-      b.keep()
-    }
-  }
+// The code-only pass and the rule scan walk the same dispatch chain; what
+// differs is what each construct does with its span. The handlers table is
+// that difference, so the chain itself exists once per language family.
+interface PyHandlers {
+  lineComment(b: Blanker): void
+  /** A raw string (r, R, or r/b combined, any case) with its quote at `prefix`. */
+  raw(b: Blanker, prefix: number): void
+  tripleQuoted(b: Blanker, quote: string): void
+  quoted(b: Blanker, quote: string): void
 }
 
-function blankCLike(b: Blanker): void {
+function blankPython(b: Blanker, h: PyHandlers): void {
   while (!b.done) {
     const c = b.at()
-    if (c === '/' && b.at(1) === '/') blankLineComment(b)
-    else if (c === '/' && b.at(1) === '*') blankBlockComment(b)
-    else if (c === '"' || c === "'") blankQuoted(b, c)
-    else if (c === '`') blankTemplate(b)
-    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept) || REGEX_MAY_FOLLOW_WORD.has(b.lastKeptWord))) blankRegex(b)
+    const raw = rawStringPrefix(b)
+    if (c === '#') h.lineComment(b)
+    else if (raw > 0) h.raw(b, raw)
+    else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) h.tripleQuoted(b, c)
+    else if (c === '"' || c === "'") h.quoted(b, c)
     else b.keep()
   }
 }
 
-// Blank every string, template literal, comment and regex literal, keeping the
-// file's exact length and line structure. Everything downstream — brace
-// balancing, keyword counting — then operates on real code only.
-//
-// This exists because line-wise regex stripping cannot see a template literal or
-// block comment that spans lines, so one unbalanced brace inside either makes a
-// function body run to the end of the file. That failure inflates a function's
-// complexity into the hundreds and makes the erosion number a lie.
-function blankNonCode(src: string, lang: Lang): string {
-  const b = new Blanker(src)
-  if (lang === 'py') blankPython(b)
-  else blankCLike(b)
-  return b.result()
+interface CLikeHandlers {
+  lineComment(b: Blanker): void
+  blockComment(b: Blanker): void
+  quoted(b: Blanker, quote: string): void
+  template(b: Blanker): void
+  regex(b: Blanker): void
+}
+
+function blankCLike(b: Blanker, h: CLikeHandlers): void {
+  while (!b.done) {
+    const c = b.at()
+    if (c === '/' && b.at(1) === '/') h.lineComment(b)
+    else if (c === '/' && b.at(1) === '*') h.blockComment(b)
+    else if (c === '"' || c === "'") h.quoted(b, c)
+    else if (c === '`') h.template(b)
+    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept) || REGEX_MAY_FOLLOW_WORD.has(b.lastKeptWord))) h.regex(b)
+    else b.keep()
+  }
 }
 
 // --- mention blanking --------------------------------------------------------
@@ -361,19 +380,11 @@ function blankNonCode(src: string, lang: Lang): string {
 // delivered code; any codebase holding a lint table, a marker regex, or docs
 // about the markers gets phantom rule hits and an inflated verbosity.
 
-/** A quoted string whose text is KEPT. The walk is still needed so a `//` or a
- *  quote inside the text cannot be misread by the surrounding lexer. */
+/** A quoted string whose text is KEPT: blankQuoted run by preserving(). The
+ *  walk is still needed so a `//` or a quote inside the text cannot be
+ *  misread by the surrounding lexer. */
 function keepQuoted(b: Blanker, quote: string): void {
-  b.keepRaw()
-  while (!b.done && b.at() !== quote) {
-    if (b.at() === '\n') return
-    if (b.at() === '\\') {
-      b.keepRaw(2)
-      continue
-    }
-    b.keepRaw()
-  }
-  b.keepRaw()
+  preserving(b, () => blankQuoted(b, quote))
 }
 
 function keepTripleQuoted(b: Blanker, quote: string): void {
@@ -389,32 +400,11 @@ function keepTripleQuoted(b: Blanker, quote: string): void {
   b.keepRaw(3)
 }
 
-/** A template literal whose text is kept; code inside ${...} is kept as code,
- *  exactly as blankTemplate tracks it. */
+/** A template literal whose text is kept. Code inside ${...} is kept as code
+ *  in both modes — blankTemplate already routes it through keep() — so this
+ *  is blankTemplate run by preserving(). */
 function keepTemplate(b: Blanker): void {
-  b.keepRaw()
-  let depth = 0
-  while (!b.done) {
-    if (b.at() === '\\') {
-      b.keepRaw(2)
-      continue
-    }
-    if (depth === 0) {
-      if (b.at() === '`') break
-      if (b.at() === '$' && b.at(1) === '{') {
-        b.keepRaw()
-        b.keep()
-        depth = 1
-        continue
-      }
-      b.keepRaw()
-      continue
-    }
-    if (b.at() === '{') depth++
-    else if (b.at() === '}') depth--
-    b.keep()
-  }
-  b.keepRaw()
+  preserving(b, () => blankTemplate(b))
 }
 
 /** Blank a double-quoted span: from the opening quote to the closer, or to the
@@ -479,40 +469,76 @@ function keepBlockComment(b: Blanker): void {
   b.keepRaw(2)
 }
 
-function mentionPython(b: Blanker): void {
-  while (!b.done) {
-    const c = b.at()
-    const raw = rawStringPrefix(b)
-    if (c === '#') keepLineComment(b)
-    else if (raw > 0) {
-      b.blank(raw)
-      const q = b.at()
-      if ((q === '"' || q === "'") && b.at(1) === q && b.at(2) === q) blankTripleQuoted(b, q)
-      else if (q === '"' || q === "'") blankRawQuoted(b, q)
-    } else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) keepTripleQuoted(b, c)
-    else if (c === '"' || c === "'") keepQuoted(b, c)
-    else b.keep()
-  }
+/** The code-only pass has no raw-string rule of its own: the prefix letters
+ *  are kept, exactly as the plain dispatch kept them before the prefix had a
+ *  branch, and the string blanks like any other. */
+function rawStringAsCode(b: Blanker, prefix: number): void {
+  b.keep(prefix)
+  const q = b.at()
+  if ((q === '"' || q === "'") && b.at(1) === q && b.at(2) === q) blankTripleQuoted(b, q)
+  else if (q === '"' || q === "'") blankQuoted(b, q)
 }
 
-function mentionCLike(b: Blanker): void {
-  while (!b.done) {
-    const c = b.at()
-    if (c === '/' && b.at(1) === '/') keepLineComment(b)
-    else if (c === '/' && b.at(1) === '*') keepBlockComment(b)
-    else if (c === '"' || c === "'") keepQuoted(b, c)
-    else if (c === '`') keepTemplate(b)
-    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept) || REGEX_MAY_FOLLOW_WORD.has(b.lastKeptWord))) blankRegex(b)
-    else b.keep()
-  }
+/** A raw string blanks whole in the rule scan, prefix included: the language
+ *  has no regex literals, so a raw string is where its patterns live. */
+function rawStringAsMention(b: Blanker, prefix: number): void {
+  b.blank(prefix)
+  const q = b.at()
+  if ((q === '"' || q === "'") && b.at(1) === q && b.at(2) === q) blankTripleQuoted(b, q)
+  else if (q === '"' || q === "'") blankRawQuoted(b, q)
+}
+
+const BLANK_C: CLikeHandlers = {
+  lineComment: blankLineComment,
+  blockComment: blankBlockComment,
+  quoted: blankQuoted,
+  template: blankTemplate,
+  regex: blankRegex,
+}
+
+const BLANK_PY: PyHandlers = {
+  lineComment: blankLineComment,
+  raw: rawStringAsCode,
+  tripleQuoted: blankTripleQuoted,
+  quoted: blankQuoted,
+}
+
+const MENTION_C: CLikeHandlers = {
+  lineComment: keepLineComment,
+  blockComment: keepBlockComment,
+  quoted: keepQuoted,
+  template: keepTemplate,
+  regex: blankRegex,
+}
+
+const MENTION_PY: PyHandlers = {
+  lineComment: keepLineComment,
+  raw: rawStringAsMention,
+  tripleQuoted: keepTripleQuoted,
+  quoted: keepQuoted,
+}
+
+// Blank every string, template literal, comment and regex literal, keeping the
+// file's exact length and line structure. Everything downstream — brace
+// balancing, keyword counting — then operates on real code only.
+//
+// This exists because line-wise regex stripping cannot see a template literal or
+// block comment that spans lines, so one unbalanced brace inside either makes a
+// function body run to the end of the file. That failure inflates a function's
+// complexity into the hundreds and makes the erosion number a lie.
+function blankNonCode(src: string, lang: Lang): string {
+  const b = new Blanker(src)
+  if (lang === 'py') blankPython(b, BLANK_PY)
+  else blankCLike(b, BLANK_C)
+  return b.result()
 }
 
 /** Source for the rule scan: comments and strings kept, regex literals and
  *  quoted mentions blanked. Same length, same line structure as the input. */
 function blankMentions(src: string, lang: Lang): string {
   const b = new Blanker(src)
-  if (lang === 'py') mentionPython(b)
-  else mentionCLike(b)
+  if (lang === 'py') blankPython(b, MENTION_PY)
+  else blankCLike(b, MENTION_C)
   return b.result()
 }
 
