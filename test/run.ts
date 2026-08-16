@@ -686,6 +686,120 @@ describe('slop', () => {
     assert((r.ruleHits['placeholder'] ?? 0) >= 1, 'placeholder not flagged')
   })
 
+  t('a marker spelled out inside a regex literal is a definition, not a hit', () => {
+    // A lint rule table IS the markers written down; scanning raw text counted
+    // slop's own table as five placeholders in delivered code.
+    const d = project()
+    write(
+      d,
+      'rules.js',
+      [
+        'const RULES = [',
+        '  { id: "placeholder", re: /\\b(TODO|FIXME|XXX)\\b|\\bnot implemented\\b/i },',
+        '  { id: "any-cast", re: /\\bas\\s+any\\b|@ts-ignore/ },',
+        ']',
+        'function use(rule) {',
+        '  return RULES.indexOf(rule)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    eq(r.ruleHits['placeholder'] ?? 0, 0, 'a rule table was reported as placeholders')
+    eq(r.ruleHits['any-cast'] ?? 0, 0, 'a rule table was reported as any-casts')
+  })
+
+  t('a quoted mention of a marker inside a comment is not a hit', () => {
+    const d = project()
+    write(d, 'a.js', ['function f() {', '  // the phrase "not implemented" is legitimate test vocabulary', '  return 1', '}', ''].join('\n'))
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    eq(r.ruleHits['placeholder'] ?? 0, 0, 'a quoted mention was reported as a placeholder')
+  })
+
+  t('a real placeholder comment and a real any-cast are still flagged', () => {
+    const d = project()
+    write(d, 'a.js', ['function f() {', '  // FIXME: implement this', '  const x = f() as any', '  return x', '}', ''].join('\n'))
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    assert((r.ruleHits['placeholder'] ?? 0) >= 1, 'a real FIXME comment was missed')
+    assert((r.ruleHits['any-cast'] ?? 0) >= 1, 'a real as-any cast was missed')
+  })
+
+  t('a "not implemented" thrown as an error string is still flagged', () => {
+    // String contents stay visible to the rules: this is the canonical stub.
+    const d = project()
+    write(d, 'a.js', ['function f() {', "  throw new Error('not implemented')", '}', ''].join('\n'))
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    assert((r.ruleHits['placeholder'] ?? 0) >= 1, 'a thrown not-implemented error was missed')
+  })
+
+  t('an unbalanced quote in a comment does not hide a marker below it', () => {
+    // blankQuotedSpan must stop at the end of the line. Without that bound a
+    // stray quote bleeds to the next quote or to EOF, and every finding after
+    // it silently disappears — while all the other mention tests still pass.
+    const d = project()
+    write(
+      d,
+      'a.js',
+      [
+        'function f() {',
+        '  // he said "stop and the prose never closed it',
+        '  const a = 1',
+        '  const b = 2',
+        '  const c = 3',
+        '  // TODO: implement retry',
+        '  return a + b + c',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    assert((r.ruleHits['placeholder'] ?? 0) >= 1, 'a marker below an unbalanced quote was hidden')
+  })
+
+  t('a python raw-string rule table is a definition, not a hit', () => {
+    // Python has no regex literals; a raw string is where its patterns live,
+    // so a lint table written as raw strings is the same mention class as the
+    // JS rule table above.
+    const d = project()
+    write(
+      d,
+      'rules.py',
+      [
+        'import re',
+        '',
+        'RULES = [',
+        "    re.compile(r'\\b(TODO|FIXME|XXX)\\b|\\bnot implemented\\b'),",
+        '    re.compile(R"\\bas\\s+any\\b"),',
+        "    re.compile(rb'\\bimplement (here|later)\\b'),",
+        ']',
+        '',
+        'def use(rule):',
+        '    return rule in RULES',
+        '',
+      ].join('\n'),
+    )
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    eq(r.ruleHits['placeholder'] ?? 0, 0, 'a python rule table was reported as placeholders')
+    eq(r.ruleHits['any-cast'] ?? 0, 0, 'a python rule table was reported as any-casts')
+  })
+
+  t('a genuine NotImplementedError string in python is still flagged', () => {
+    // Only RAW strings are blanked; an ordinary string is a real stub.
+    const d = project()
+    write(d, 'a.py', ['def f():', '    raise NotImplementedError("not implemented")', ''].join('\n'))
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    assert((r.ruleHits['placeholder'] ?? 0) >= 1, 'a raised not-implemented error was missed')
+  })
+
+  t('a quoted mention inside a python docstring is not a hit', () => {
+    // A docstring is prose, so quotation inside it is a mention exactly as in
+    // a # comment.
+    const d = project()
+    write(d, 'a.py', ['def f():', '    """Raises the "not implemented" error when the backend is absent."""', '    return 1', ''].join('\n'))
+    const r = json<ScanOk>(run('slop.ts', ['scan', d, '--json']))
+    eq(r.ruleHits['placeholder'] ?? 0, 0, 'a quoted mention in a docstring was reported as a placeholder')
+  })
+
   t('check without a baseline reports the absence as the breach', () => {
     const d = project()
     write(d, 'a.js', 'function f() {\n  return 1\n}\n')

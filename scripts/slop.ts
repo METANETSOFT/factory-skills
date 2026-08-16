@@ -171,6 +171,17 @@ class Blanker {
       this.i++
     }
   }
+  /** Keep the characters but do not let them pose as code context: string and
+   *  comment text kept for the rule scan must not influence the regex-vs-
+   *  division disambiguation, exactly as if it had been blanked. */
+  keepRaw(n = 1): void {
+    while (n-- > 0 && !this.done) {
+      const c = this.at()
+      if (c === undefined) return
+      this.out[this.i] = c
+      this.i++
+    }
+  }
   blank(n = 1): void {
     while (n-- > 0 && !this.done) {
       const c = this.at()
@@ -325,6 +336,183 @@ function blankNonCode(src: string, lang: Lang): string {
   const b = new Blanker(src)
   if (lang === 'py') blankPython(b)
   else blankCLike(b)
+  return b.result()
+}
+
+// --- mention blanking --------------------------------------------------------
+// The rule scan needs a different cut of the source than the complexity scan.
+// Comments and strings must stay READABLE — a real "TODO:" lives in a comment,
+// and a thrown "not implemented" error is a genuine placeholder — but a marker
+// that only ever appears as its own DEFINITION is not a violation. Two shapes
+// are mentions by construction rather than uses:
+//   - a regex literal: its text describes what to match. A lint rule table or
+//     a marker-detection regex is the marker spelled out, and the lexer already
+//     identifies these for the code-only pass above.
+//   - a double-quoted span inside a comment: quotation is how prose mentions a
+//     phrase. Single quotes are excluded — an apostrophe would blank the rest
+//     of every plain-English comment.
+//   - a Python raw string: the language has no regex literals, so a raw string
+//     is where its patterns live. A lint table written as raw strings is the
+//     marker spelled out, the direct analogue of a JS regex literal. Ordinary
+//     strings stay readable: raise NotImplementedError("not implemented") is a
+//     genuine stub and must keep firing.
+// Scanning raw source instead meant slop scanning its own rule table reported
+// its placeholder and any-cast pattern definitions as five violations in
+// delivered code; any codebase holding a lint table, a marker regex, or docs
+// about the markers gets phantom rule hits and an inflated verbosity.
+
+/** A quoted string whose text is KEPT. The walk is still needed so a `//` or a
+ *  quote inside the text cannot be misread by the surrounding lexer. */
+function keepQuoted(b: Blanker, quote: string): void {
+  b.keepRaw()
+  while (!b.done && b.at() !== quote) {
+    if (b.at() === '\n') return
+    if (b.at() === '\\') {
+      b.keepRaw(2)
+      continue
+    }
+    b.keepRaw()
+  }
+  b.keepRaw()
+}
+
+function keepTripleQuoted(b: Blanker, quote: string): void {
+  const close = quote.repeat(3)
+  b.keepRaw(3)
+  // A docstring is prose, so a quoted span inside it is a mention and is
+  // blanked exactly as in a comment. A genuine stub is not touched: it sits
+  // in an ordinary string, not in a quoted span inside a triple-quoted one.
+  while (!b.done && b.src.slice(b.i, b.i + 3) !== close) {
+    if (b.at() === '"') blankQuotedSpan(b)
+    else b.keepRaw()
+  }
+  b.keepRaw(3)
+}
+
+/** A template literal whose text is kept; code inside ${...} is kept as code,
+ *  exactly as blankTemplate tracks it. */
+function keepTemplate(b: Blanker): void {
+  b.keepRaw()
+  let depth = 0
+  while (!b.done) {
+    if (b.at() === '\\') {
+      b.keepRaw(2)
+      continue
+    }
+    if (depth === 0) {
+      if (b.at() === '`') break
+      if (b.at() === '$' && b.at(1) === '{') {
+        b.keepRaw()
+        b.keep()
+        depth = 1
+        continue
+      }
+      b.keepRaw()
+      continue
+    }
+    if (b.at() === '{') depth++
+    else if (b.at() === '}') depth--
+    b.keep()
+  }
+  b.keepRaw()
+}
+
+/** Blank a double-quoted span: from the opening quote to the closer, or to the
+ *  end of the line when the prose never closes it. */
+function blankQuotedSpan(b: Blanker): void {
+  b.blank()
+  while (!b.done && b.at() !== '"' && b.at() !== '\n') {
+    if (b.blankEscape()) continue
+    b.blank()
+  }
+  if (b.at() === '"') b.blank()
+}
+
+/** A comment is kept — the comment-targeted rules need its text — but quoted
+ *  spans inside it are mentions and are blanked. */
+/** A raw string's backslash is literal — it does not hide the closing quote —
+ *  so unlike blankQuoted there is no escape pair to skip. The newline bound
+ *  still holds: a single-quoted raw string cannot span lines either. */
+function blankRawQuoted(b: Blanker, quote: string): void {
+  b.blank()
+  while (!b.done && b.at() !== quote && b.at() !== '\n') b.blank()
+  if (b.at() === quote) b.blank()
+}
+
+/** Length of a Python raw-string prefix at the cursor — r, R, or r combined
+ *  with b in either order and any case — when a quote follows it. Zero when
+ *  this is not one: a word character immediately before means the letter is
+ *  the tail of an identifier, not a prefix. The previous SOURCE character is
+ *  the test, not lastKept — kept string and comment text must not pose as
+ *  code context here any more than in the regex disambiguation above. */
+function rawStringPrefix(b: Blanker): number {
+  const prev = b.i > 0 ? b.src[b.i - 1] : undefined
+  if (prev !== undefined && WORD_CHAR.test(prev)) return 0
+  const c0 = b.at()
+  const c1 = b.at(1)
+  if (c0 === undefined || c1 === undefined) return 0
+  if (/[rR]/.test(c0) && (c1 === '"' || c1 === "'")) return 1
+  if (
+    /[rbRB]/.test(c0) &&
+    /[rbRB]/.test(c1) &&
+    c0.toLowerCase() !== c1.toLowerCase() &&
+    (b.at(2) === '"' || b.at(2) === "'")
+  ) {
+    return 2
+  }
+  return 0
+}
+
+function keepLineComment(b: Blanker): void {
+  while (!b.done && b.at() !== '\n') {
+    if (b.at() === '"') blankQuotedSpan(b)
+    else b.keepRaw()
+  }
+}
+
+function keepBlockComment(b: Blanker): void {
+  b.keepRaw(2)
+  while (!b.done && !(b.at() === '*' && b.at(1) === '/')) {
+    if (b.at() === '"') blankQuotedSpan(b)
+    else b.keepRaw()
+  }
+  b.keepRaw(2)
+}
+
+function mentionPython(b: Blanker): void {
+  while (!b.done) {
+    const c = b.at()
+    const raw = rawStringPrefix(b)
+    if (c === '#') keepLineComment(b)
+    else if (raw > 0) {
+      b.blank(raw)
+      const q = b.at()
+      if ((q === '"' || q === "'") && b.at(1) === q && b.at(2) === q) blankTripleQuoted(b, q)
+      else if (q === '"' || q === "'") blankRawQuoted(b, q)
+    } else if ((c === '"' || c === "'") && b.at(1) === c && b.at(2) === c) keepTripleQuoted(b, c)
+    else if (c === '"' || c === "'") keepQuoted(b, c)
+    else b.keep()
+  }
+}
+
+function mentionCLike(b: Blanker): void {
+  while (!b.done) {
+    const c = b.at()
+    if (c === '/' && b.at(1) === '/') keepLineComment(b)
+    else if (c === '/' && b.at(1) === '*') keepBlockComment(b)
+    else if (c === '"' || c === "'") keepQuoted(b, c)
+    else if (c === '`') keepTemplate(b)
+    else if (c === '/' && (b.lastKept === null || REGEX_MAY_FOLLOW.has(b.lastKept) || REGEX_MAY_FOLLOW_WORD.has(b.lastKeptWord))) blankRegex(b)
+    else b.keep()
+  }
+}
+
+/** Source for the rule scan: comments and strings kept, regex literals and
+ *  quoted mentions blanked. Same length, same line structure as the input. */
+function blankMentions(src: string, lang: Lang): string {
+  const b = new Blanker(src)
+  if (lang === 'py') mentionPython(b)
+  else mentionCLike(b)
   return b.result()
 }
 
@@ -499,17 +687,22 @@ function analyseFile(file: string): FileAnalysis | null {
   }
   const lines = src.split('\n')
   const blankedLines = blankNonCode(src, lang).split('\n')
+  // Rules run against the mention-blanked source, not the raw text: a marker
+  // inside a regex literal or a quoted span in a comment is the pattern being
+  // DEFINED or discussed, not a violation left in the code. Without this, slop
+  // flagged its own rule table as five placeholders in delivered code.
+  const mentionLines = blankMentions(src, lang).split('\n')
   const nonBlank = lines.filter((l) => l.trim()).length
   const loc = lines.filter((l) => l.trim() && !isComment(l, lang)).length
   if (!loc) return null
 
   const flagged = new Set<number>()
   const hits: RuleHit[] = []
-  lines.forEach((l, i) => {
+  mentionLines.forEach((l, i) => {
     for (const r of RULES) {
       if (r.re.test(l)) {
         flagged.add(i)
-        hits.push({ rule: r.id, file, line: i + 1, why: r.why, text: l.trim().slice(0, 120) })
+        hits.push({ rule: r.id, file, line: i + 1, why: r.why, text: (lines[i] ?? l).trim().slice(0, 120) })
         break
       }
     }
