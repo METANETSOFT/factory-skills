@@ -566,9 +566,18 @@ try {
       if (doneArg === undefined || totalArg === undefined) {
         throw new Fail({ ok: false, error: 'usage: state.ts slice <done>/<total>' })
       }
+      const done = Number(doneArg)
+      const total = Number(totalArg)
+      // Nonsense the regex cannot catch, because it only checks for digits. A
+      // count above the total is not absorbed anywhere: it is written to
+      // state.json, printed by `context.ts --brief`, and carried into the
+      // handoff, so the next session reads progress that never happened.
+      if (done > total) {
+        throw new Fail({ ok: false, error: `slice ${done}/${total}: done cannot exceed total` })
+      }
       const s = withLock((): State => {
         const st = readState()
-        st.slice = { done: Number(doneArg), total: Number(totalArg) }
+        st.slice = { done, total }
         st.session.counts.slice = (st.session.counts.slice ?? 0) + 1
         write(st)
         appendLedger(`- ${nowISO()} — slice ${st.slice.done}/${st.slice.total} complete`)

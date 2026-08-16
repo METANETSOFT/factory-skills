@@ -375,6 +375,11 @@ switch (cmd) {
     const r = resolveJob(positional[1])
     if (!r.ok || has('json')) {
       out(r)
+      // An unknown job is a failure, and every other error path in this skill
+      // says so in the exit code — `fetch` below, and all of state.ts. Without
+      // this line a caller that checks the code reads a rejected job as a
+      // resolved one, and routes the work to a playbook that does not exist.
+      if (!r.ok) process.exit(1)
       break
     }
     const lines = [`job: ${r.job}`, `playbook: ${r.playbookRel}  (read this first)`]

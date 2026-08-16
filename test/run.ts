@@ -289,6 +289,18 @@ describe('state', () => {
     assert(/HANDOFF_NOW/.test(last.pressure?.directive ?? ''))
   })
 
+  t('slice refuses a count above the total instead of recording it', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    run('state.ts', ['start', 'w', '--root', d])
+    const r = run('state.ts', ['slice', '9/2', '--root', d])
+    assert(r.code !== 0, `expected a non-zero exit, got ${r.code}`)
+    // A refusal that still writes is worse than no validation: the bad count
+    // would reach the handoff, and the next session would read progress that
+    // never happened.
+    eq(json<Snapshot>(run('state.ts', ['show', '--root', d])).slice, { done: 0, total: 0 })
+  })
+
   t('approaching a cap warns before it blocks', () => {
     const d = project()
     run('state.ts', ['init', '--root', d])
@@ -551,9 +563,17 @@ describe('skills', () => {
   })
 
   t('resolve rejects an unknown job and lists the valid ones', () => {
-    const r = json<ResolveSkillsFail>(run('skills.ts', ['resolve', 'not-a-job', '--json']))
+    const raw = run('skills.ts', ['resolve', 'not-a-job', '--json'])
+    // The exit code is half the contract. Asserting only the body is how this
+    // shipped returning `ok: false` with a success code, which reads to any
+    // caller that checks the code as a job that resolved.
+    assert(raw.code !== 0, `expected a non-zero exit, got ${raw.code}`)
+    const r = json<ResolveSkillsFail>(raw)
     eq(r.ok, false)
     assert(Array.isArray(r.jobs) && r.jobs.length > 5, 'expected the valid job list back')
+    // The human-readable path is the one an agent actually runs, and it takes
+    // the same branch — so it has to carry the same code.
+    assert(run('skills.ts', ['resolve', 'not-a-job']).code !== 0, 'the non-JSON path exited 0')
   })
 
   t('a missing skill comes back with a degraded path', () => {
