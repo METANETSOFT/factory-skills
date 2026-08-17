@@ -40,7 +40,11 @@ For every slice in `PLAN.md`, in plan order, one at a time, never batched:
 
 A subagent starts with **zero context**: it cannot see this conversation, the earlier slices, the Laws, or the reason any of it exists. Hand-construct the brief; never assume inherited history. Split by context boundary, never by role — a planner → implementer → tester chain is a documented anti-pattern that degrades into a telephone game, and multi-agent runs already burn 3–10× the tokens, so delegate for isolation, not for theatre.
 
+**Who gets the brief is decided first.** `node ${CLAUDE_SKILL_DIR}/scripts/skills.ts worker` names the executor and the envelope it covers. If writing this slice is inside that envelope, the slice goes to the worker (Law 11, [worker.md](worker.md)) and the brief opens with the verbatim announce line — without it the agent you dispatched does the labor itself and the delegation bought nothing. If the slice needs something the worker cannot do, it stays with a harness subagent and you say which capability was missing. Either way `state.ts tick subagent` counts it, and you still read the diff.
+
 ```markdown
+<the recorded worker's announce line, verbatim, when the slice is inside its envelope — omit otherwise>
+
 GOAL (why this exists): <the user-visible outcome this slice serves, in one sentence>
 SLICE <n> of <total>: <the slice block from PLAN.md, verbatim>
 
@@ -121,7 +125,7 @@ Refuse the coverage-gaming variants too: happy path implemented and error path s
 
 ## Checking the work
 
-**A subagent reporting success is not evidence.** It is a listed failure, not a judgement call: agents have fabricated `git bisect` output, claimed to have written and run tests that never existed, and produced a Playwright recording of a bug repro staged entirely inside an artificial page. Before accepting any slice:
+**A subagent reporting success is not evidence.** It is a listed failure, not a judgement call: agents have fabricated `git bisect` output, claimed to have written and run tests that never existed, and produced a Playwright recording of a bug repro staged entirely inside an artificial page. A worker's report is the same claim from different hands: judge what it returns, and treat "done" with an empty changed-file list as not done. Before accepting any slice:
 
 1. Read `git diff <base>..HEAD` in full. Not the summary — the diff.
 2. Confirm every changed file is on the brief's `FILES YOU MAY TOUCH` list, and every new abstraction has ≥ 2 real call sites. One adapter is a hypothetical seam; two is a real one.

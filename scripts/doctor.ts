@@ -38,8 +38,8 @@ const add = (where: string, msg: string): void => {
 // What the scripts actually accept. The docs are checked against this, so a
 // renamed subcommand fails here instead of failing in front of a user.
 const SUBCOMMANDS: Record<string, string[]> = {
-  'state.ts': ['init', 'show', 'start', 'phase', 'slice', 'note', 'resolve', 'tick', 'handoff', 'finish'],
-  'skills.ts': ['list', 'jobs', 'resolve', 'fetch', 'doctor'],
+  'state.ts': ['init', 'show', 'start', 'phase', 'slice', 'note', 'resolve', 'tick', 'worker', 'handoff', 'finish'],
+  'skills.ts': ['list', 'jobs', 'resolve', 'worker', 'fetch', 'doctor'],
   'slop.ts': ['scan', 'baseline', 'check'],
   'hooks.ts': ['on', 'off', 'status', 'gate'],
   'doctor.ts': [],
@@ -189,6 +189,22 @@ for (const [job, spec] of Object.entries(map.jobs)) {
   }
   for (const id of spec.external ?? []) {
     if (!map.external[id]) add(`skill-map.json:${job}`, `external id "${id}" is undefined`)
+  }
+}
+
+// A worker is discovered at runtime, never listed here — the factory routes to
+// whatever delegation skill or MCP the session happens to carry. What can rot
+// is the opposite: a named worker leaking back into the skill's own text, which
+// would make the routing rule stop firing the day that name changes.
+const NAMED_WORKER = /\b(kole-kimi|omniroute-router|kimi_(?:agent|ask|swarm|jobs|models))\b/g
+for (const { where, file } of [
+  { where: 'SKILL.md', file: skillPath },
+  ...refFiles.map((f) => ({ where: `reference/${f}`, file: path.join(REF, f) })),
+]) {
+  // The skill map is the one place a specific skill name is legitimate: it is a
+  // registry of skills that exist, not a routing rule keyed to one of them.
+  for (const m of fs.readFileSync(file, 'utf8').matchAll(NAMED_WORKER)) {
+    add(where, `names a specific worker (${group(m, 0)}) — the worker rule must stay generic, or it dies with that name`)
   }
 }
 

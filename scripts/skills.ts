@@ -9,7 +9,8 @@
 // Usage:
 //   node skills.ts list                     → every skill installed here
 //   node skills.ts jobs                     → job kinds this factory routes
-//   node skills.ts resolve <job> [--json]   → what to load for that job
+//   node skills.ts resolve <job> [--json]   → what to load for that job, and who executes it
+//   node skills.ts worker [--json]          → delegation backends installed here
 //   node skills.ts fetch <external-id>      → install an external skill from GitHub
 //   node skills.ts doctor                   → coverage report across all jobs
 
@@ -17,6 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { resolve as resolveWorkspace } from './lib/workspace.ts'
 import type { ExternalEntry, InstalledSkill, RegistryEntry, ResolvedSkill, SkillMap } from './lib/types.ts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -179,6 +181,89 @@ const BUILTINS = new Set([
 
 type ResolvedExternal = ExternalEntry & { id: string }
 
+// --- the worker ---------------------------------------------------------------
+//
+// A worker is a different question from a skill. A skill answers "what do I need
+// to know to do this job well"; a worker answers "whose hands do the job". The
+// factory keeps no list of workers on purpose: which one exists is a fact about
+// the session — a delegation skill loaded, an MCP server connected — and it is
+// discoverable only by the agent reading its own context. Anything hardcoded
+// here would stop firing the day that name changes.
+//
+// So this reads what the session recorded, and every job resolution carries the
+// executor alongside the reading list.
+
+/** What state.json records about the executor, shaped defensively. */
+interface RecordedWorker {
+  name: string
+  kind: string
+  dispatch: string
+  does: string
+  announce: string
+}
+
+interface WorkerReport {
+  active: (RecordedWorker & { skillInstalledHere: boolean }) | null
+  /** What never leaves the orchestrator, whatever the worker is. */
+  keep: string[]
+  directive: string
+}
+
+const KEEP: string[] = [
+  'The brief — decomposition is the job, not the typing.',
+  'The decision — a one-token call costs less to make than to delegate.',
+  'The verdict on the evidence — a report is not evidence; the diff, the command output and the changed-file list are (Law 1).',
+  'The user — a worker never talks to them and never learns what they were not told.',
+]
+
+const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+/** The worker recorded in state.json, or null. Never throws: an unreadable state is simply no worker. */
+function recordedWorker(): RecordedWorker | null {
+  try {
+    const P = resolveWorkspace()
+    if (!fs.existsSync(P.state)) return null
+    const s: unknown = JSON.parse(fs.readFileSync(P.state, 'utf8'))
+    if (typeof s !== 'object' || s === null || !('worker' in s)) return null
+    const w: unknown = s.worker
+    if (typeof w !== 'object' || w === null || !('name' in w) || typeof w.name !== 'string') return null
+    const rec: Record<string, unknown> = w
+    return {
+      name: w.name,
+      kind: str(rec['kind']) || 'worker',
+      dispatch: str(rec['dispatch']),
+      does: str(rec['does']),
+      announce: str(rec['announce']),
+    }
+  } catch {
+    return null
+  }
+}
+
+function resolveWorkers(): WorkerReport {
+  const rec = recordedWorker()
+  if (!rec) {
+    return {
+      active: null,
+      keep: KEEP,
+      directive:
+        'NO_WORKER — a harness subagent is the executor, which is the normal path and not a degradation. ' +
+        'If a worker (a delegation skill or an MCP that executes work for you) is present in this session, ' +
+        'record it before the first dispatch: `state.ts worker <name> --dispatch "<call>" --does "<what it covers>"`. ' +
+        'Only you can see it; no script can.',
+    }
+  }
+  return {
+    active: { ...rec, skillInstalledHere: installed().has(rec.name) },
+    keep: KEEP,
+    directive:
+      `WORKER_ACTIVE — ${rec.name} (${rec.kind}) covers: ${rec.does}. ` +
+      `A job inside that envelope is dispatched to it with ${rec.dispatch}, not to a harness subagent. ` +
+      'A job outside it, or one the list below keeps with you, is not — capability decides, not habit. ' +
+      `Open every brief with: "${rec.announce}"`,
+  }
+}
+
 interface JobResolution {
   ok: true
   job: string
@@ -187,6 +272,7 @@ interface JobResolution {
   prefer: ResolvedSkill[]
   also: ResolvedSkill[]
   external: ResolvedExternal[]
+  worker: WorkerReport
   missing: string[]
 }
 
@@ -236,6 +322,7 @@ function resolveJob(job: string | undefined): ResolveResult {
     prefer,
     also,
     external,
+    worker: resolveWorkers(),
     missing: [...prefer, ...also].filter((s) => s.status === 'missing').map((s) => s.name),
   }
 }
@@ -383,6 +470,15 @@ switch (cmd) {
       break
     }
     const lines = [`job: ${r.job}`, `playbook: ${r.playbookRel}  (read this first)`]
+    // Printed before the reading list, because who executes decides how the rest
+    // of this resolution is used: an active worker turns "load impeccable" into
+    // "put impeccable's standard in the brief you send", not "read it yourself".
+    const w = r.worker
+    lines.push('', `executor: ${w.active ? `${w.active.name} (${w.active.kind})` : 'harness subagent'}`, `  ${w.directive}`)
+    if (w.active) {
+      lines.push('  keep with you:')
+      for (const k of w.keep) lines.push(`    - ${k}`)
+    }
     if (r.prefer.length) {
       lines.push('', 'load — owns this job:')
       for (const s of r.prefer) lines.push(`  [${s.status}] ${s.name}`)
@@ -406,6 +502,28 @@ switch (cmd) {
         lines.push(`      without it: ${g.degrade}`)
       }
     }
+    process.stdout.write(lines.join('\n') + '\n')
+    break
+  }
+
+  case 'worker': {
+    const r = resolveWorkers()
+    if (has('json')) {
+      out(r)
+      break
+    }
+    const lines = [`executor: ${r.active ? `${r.active.name} (${r.active.kind})` : 'harness subagent'}`, r.directive, '']
+    if (r.active) {
+      lines.push(`covers:     ${r.active.does}`)
+      lines.push(`dispatch:   ${r.active.dispatch}`)
+      lines.push(`brief line: ${r.active.announce}`)
+      if (!r.active.skillInstalledHere) {
+        lines.push('note:       no local skill by that name — an MCP or session-provided worker. Confirm it answers before trusting a dispatch to it.')
+      }
+      lines.push('')
+    }
+    lines.push('never delegated, whatever the worker is:')
+    for (const k of r.keep) lines.push(`  - ${k}`)
     process.stdout.write(lines.join('\n') + '\n')
     break
   }
@@ -439,10 +557,12 @@ switch (cmd) {
       }
       r.missing.forEach((m) => missingAll.add(m))
     }
+    const workers = resolveWorkers()
     out({
       installedCount: inst.size,
       jobs: report,
       missingAcrossJobs: [...missingAll],
+      executor: workers.active ? `${workers.active.name} (${workers.active.kind})` : 'harness subagent',
       fetchable: Object.keys(FETCHABLE),
     })
     break
@@ -450,7 +570,7 @@ switch (cmd) {
 
   default:
     out({
-      usage: ['list', 'jobs', 'resolve <job> [--json]', 'fetch <external-id> [destDir]', 'doctor'],
+      usage: ['list', 'jobs', 'resolve <job> [--json]', 'worker [--json]', 'fetch <external-id> [destDir]', 'doctor'],
       jobs: Object.keys(MAP.jobs),
       fetchable: Object.keys(FETCHABLE),
     })

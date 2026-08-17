@@ -71,7 +71,7 @@ RETURN       files changed, +added/-deleted from `git diff --shortstat`, and one
 
 A `motion` brief adds the current inventory — durations, easings, what already animates — and its thresholds: interruptible, under 400ms unless the brief justifies longer, `prefers-reduced-motion` handled.
 
-`state.ts tick subagent` after each dispatch; the cap is 12. Multi-agent runs burn 3–10× the tokens of single-agent work, so dispatch for context isolation, not for theatre.
+`state.ts tick subagent` after each dispatch; the cap is 12. Multi-agent runs burn 3–10× the tokens of single-agent work, so dispatch for context isolation, not for theatre. Where this pass is inside the recorded worker's envelope it receives the brief, announce line at the top (Law 11, [worker.md](worker.md)) — the design skill named by `skills.ts resolve design-ui` does not stop mattering, it moves: its standard is written into the brief instead of read by you.
 
 ## Mode is stated, never inferred
 

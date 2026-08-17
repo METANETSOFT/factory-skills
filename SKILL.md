@@ -1,9 +1,9 @@
 ---
 name: factory
 description: Use when building, shipping or evolving real software with an agent — implementing a feature, designing an interface, planning architecture, debugging a failure you have already failed to fix once, producing marketing or docs, or running unattended work across many sessions. Also use when the work is too large for one context window, when you are resuming work a previous session left unfinished, when earlier agent output produced code nobody trusts, or when the user says "factory", "keep going", "loop", "resume", or asks for a plan before any code. Not for a one-line edit, a lookup, or anything that fits in a single reply.
-when_to_use: Trigger phrases include "build me", "ship this", "plan this first", "keep working on it", "continue where we left off", "run it in a loop", "this codebase is a mess", "you stubbed it again", "don't cut corners".
-argument-hint: "[init|research|product|architecture|design|plan|implement|verify|review|loop|status|handoff|resume|skills] [target]"
-version: 1.0.0
+when_to_use: Trigger phrases include "build me", "ship this", "plan this first", "keep working on it", "continue where we left off", "run it in a loop", "this codebase is a mess", "you stubbed it again", "don't cut corners". Also use when a worker — any delegation skill or MCP that executes work on your behalf — is present in the session and the build work should be dispatched through it rather than through harness subagents.
+argument-hint: "[init|research|product|architecture|design|plan|implement|verify|review|loop|status|handoff|resume|skills|worker] [target]"
+version: 1.1.0
 user-invocable: true
 license: Apache-2.0
 allowed-tools:
@@ -44,6 +44,8 @@ These hold for the entire session, not just the turn that loaded them. They over
 
 **10 — Secrets never enter an artifact.** No key, token, password or connection string goes into `FACTORY.md`, `PLAN.md`, a handoff, the ledger, a commit message, or any file the factory writes. Credentials live in `.env`, `.env` is gitignored, and code reads them from the environment. Artifacts name the variable, never its value. If you find a committed secret, stop and tell the user — do not carry it forward into a new file, because every artifact you write is a new place it now leaks from.
 
+**11 — A present worker gets the work it covers.** If this session's context carries a worker — any skill or MCP that executes work on your behalf — then for every job inside what that worker can actually do, it is the executor, and reaching for a harness subagent instead is the exception you justify out loud. Capability decides, not habit and not the worker's name: check the job against its envelope, delegate what fits, keep what does not, and say which. A worker present but unused is a choice the user made and you quietly overrode. Every brief opens with the worker's announce line so the agent you dispatch routes *its* labor the same way instead of becoming an expensive orchestrator of one. What never leaves you: the brief, the decision, and the verdict on the evidence — Law 1 does not relax because the hands changed. [reference/worker.md](reference/worker.md).
+
 ## Setup
 
 Run once per session, before anything else:
@@ -52,7 +54,9 @@ Run once per session, before anything else:
 node ${CLAUDE_SKILL_DIR}/scripts/context.ts --brief
 ```
 
-It reports the phase, the active work, open items carried from previous sessions, git state and project shape, and emits directives. **Follow its directives.** Do not re-run it, and do not re-derive what it already told you.
+It reports the phase, the active work, the executor, open items carried from previous sessions, git state and project shape, and emits directives. **Follow its directives.** Do not re-run it, and do not re-derive what it already told you.
+
+If this session carries a worker — a delegation skill the user loaded, an MCP that executes work for you — record it now, before the first dispatch. Setup cannot see it: no script can read which skills were invoked or which servers are connected. You can, and only this turn.
 
 If it reports `NOT_INITIALIZED`, read [reference/init.md](reference/init.md) — the factory has no charter here yet.
 If it reports `RESUME`, read the handoff it names before touching anything. Earlier phases already happened; their output is on disk. Re-running them burns the user's money to rediscover what you already knew.
@@ -91,6 +95,7 @@ Phases are skippable *deliberately and out loud*, never by drift. A one-file bug
 | `status` | `state.ts show` and report it plainly |
 | `handoff` | Freeze the session into a resumable document — [reference/context-discipline.md](reference/context-discipline.md) |
 | `resume` | Read the handoff and continue |
+| `worker [name\|none]` | Record or clear the delegation backend every dispatch goes through — [reference/worker.md](reference/worker.md) |
 | `skills` | `skills.ts doctor` — what the tree can reach from here |
 | `doctor` | `doctor.ts` — is this skill itself still coherent (links, scripts, map)? Run it after editing the skill |
 
@@ -107,6 +112,28 @@ Jobs: `research product architecture program-design implement verify review debu
 It names the playbook to read, the skills installed here that own the job, the ones to load only when their trigger applies, and what is missing with how to get it. Load what it names. [reference/skill-map.md](reference/skill-map.md) is the same map in prose, with the reasoning behind each route.
 
 A skill it marks `missing` is a real gap — tell the user the one-line install command rather than improvising a worse version of it yourself.
+
+Every resolution also names the **executor** — who does the work, as opposed to what to read before doing it. Those are different questions and the second one has a different answer depending on the first: with a worker active, "load `impeccable`" stops meaning "read it yourself" and starts meaning "put its standard into the brief you send".
+
+## The worker
+
+A worker is anything in this session that executes work for you: a delegation skill the user loaded, a connected MCP server, a gateway. The factory keeps no list of them and hardcodes no name — which worker exists is a fact about the session, and a rule keyed to one name stops working the day that name changes.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts worker    # the executor, and what is never delegated
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts worker <name> \
+  --dispatch "<the exact call>" --does "<what it covers>" --kind skill|mcp
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts worker none        # it is gone from this session
+```
+
+Four rules, and the rest is in [reference/worker.md](reference/worker.md):
+
+1. **Record it the moment you see it.** That signal lives in your context and nowhere else, and only until it is cleared. `--does` is the important field: you have just read the worker's own description, so state its envelope in one line. An unrecorded worker is one `/clear` away from being abandoned mid-run.
+2. **Match the job to the envelope before every dispatch.** A job it covers goes to it. A job it does not — a capability it lacks, a tool it cannot reach, work whose correctness is worth more than the saving — stays with you, and you say so in one line rather than forcing it. This is the whole rule: capability decides.
+3. **The worker is the executor everywhere the factory would have used a subagent** — research recon, the parallel interface designs, every implementation slice, the review pass, the debug re-run. `state.ts tick subagent` still counts each dispatch; the caps measure *your* context and do not move because the hands changed.
+4. **Every brief carries the announce line.** `skills.ts worker` prints it. Without it the dispatched agent does not know a worker exists and does the labor itself — you paid the delegation overhead and got none of the benefit.
+
+The worker executes. It does not decide, and it does not certify: a returned report is not evidence at any point where Law 1 applies, and a claim of success with an empty changed-file list means nothing happened, however confident the prose.
 
 ## Routing
 

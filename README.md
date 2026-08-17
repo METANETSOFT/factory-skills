@@ -74,8 +74,17 @@ skill degrades explicitly when an optional skill is missing rather than silently
 /factory marketing <target>   positioning, copy, docs
 /factory debug <symptom>      root cause before fix
 /factory loop <goal>          unattended iteration toward a measurable target
+/factory worker <name|none>   record the worker every dispatch goes through
 /factory status | handoff | resume | skills
 ```
+
+If the session carries a **worker** — any delegation skill or MCP that executes work on the agent's
+behalf — record it once with `/factory worker <name> --dispatch "<call>" --does "<what it covers>"`.
+The factory hardcodes no worker names: it checks each job against the envelope you recorded, sends
+what fits to the worker instead of to a harness subagent, keeps what does not and says so, and puts
+an announce line at the top of every brief so the dispatched agent routes its own labor the same way.
+The choice survives `/clear`, a handoff and a resume. What never moves: the brief, the decision, and
+the verdict on the evidence.
 
 Typing `/factory` with no argument gives a menu built from the project's actual state, not a static
 list. It never auto-starts a phase.
@@ -211,7 +220,7 @@ re-entry guard that stops a blocking hook trapping a session in a loop.
 
 ## The Laws
 
-Ten standing rules that hold for the whole session, not just the turn that loaded them. In short:
+Eleven standing rules that hold for the whole session, not just the turn that loaded them. In short:
 
 1. Evidence before claims — no status without a command run in this message
 2. Never trade completeness for space — a full window means hand off, never compress
@@ -223,6 +232,7 @@ Ten standing rules that hold for the whole session, not just the turn that loade
 8. Rulings, not stalls
 9. Route, don't reinvent
 10. Secrets never enter an artifact
+11. A present worker gets the work it covers — and never certifies its own output
 
 Law 10 is enforced by `.gitignore` and `.env.example`; the skill itself needs no credentials at all.
 

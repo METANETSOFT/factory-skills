@@ -61,6 +61,7 @@ interface Snapshot {
   nextPhase?: Phase | null
   nextAction?: string | null
   work?: WorkRef | null
+  worker?: WorkerView | null
   workDir?: string | null
   slice?: { done: number; total: number }
   openItems?: OpenItem[]
@@ -113,6 +114,28 @@ interface SkillsDoctor {
   jobs: Record<string, { playbookExists: boolean }>
 }
 
+interface WorkerView {
+  name: string
+  kind: string
+  dispatch: string
+  does: string
+  announce: string
+  at: string
+}
+
+interface WorkerResult {
+  ok?: boolean
+  worker: WorkerView | null
+  directive?: string
+  error?: string
+}
+
+interface WorkerReport {
+  active: (WorkerView & { skillInstalledHere: boolean }) | null
+  keep: string[]
+  directive: string
+}
+
 interface HooksStatus {
   installed: boolean
   checks: string[]
@@ -127,6 +150,7 @@ interface ContextReport {
   stateCorrupt: string | null
   phase: Phase | null
   work: WorkRef | null
+  worker: WorkerView | null
   git: GitSignals
   project: ProjectShape
   directives: Directive[]
@@ -487,6 +511,161 @@ describe('state', () => {
     eq(n.ok, true)
     const ledger = fs.readFileSync(path.join(wsOf(d), 'ledger.md'), 'utf8')
     assert(ledger.includes('`: --force on main'), `the ruling text was mangled:\n${ledger.slice(-300)}`)
+  })
+})
+
+// ---------------------------------------------------------------- worker
+//
+// The worker is the executor. The factory hardcodes no worker names — which one
+// exists is a fact about the session — so these tests guard the contract, not a
+// vendor: an arbitrary name is accepted, a worker with no callable or no stated
+// envelope is refused, and what was recorded survives the /clear it exists to
+// survive.
+
+describe('worker', () => {
+  const DISPATCH = 'acme_run(cwd, task)'
+  const DOES = 'reads files, greps, edits code, runs shell commands; no web access'
+  const record = (d: string, name = 'acme-runner', extra: string[] = []): RunResult =>
+    run('state.ts', ['worker', name, '--dispatch', DISPATCH, '--does', DOES, '--root', d, ...extra])
+
+  t('any name is accepted — the factory keeps no list of known workers', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const w = json<WorkerResult>(record(d, 'something-invented-tomorrow'))
+    eq(w.ok, true)
+    eq(w.worker?.name, 'something-invented-tomorrow')
+    eq(w.worker?.dispatch, DISPATCH)
+    eq(w.worker?.does, DOES)
+  })
+
+  t('a worker with no dispatch call is refused, not recorded', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const r = run('state.ts', ['worker', 'acme-runner', '--does', DOES, '--root', d])
+    eq(r.code, 1)
+    eq(json<WorkerResult>(r).ok, false)
+    eq(json<Snapshot>(run('state.ts', ['show', '--root', d])).worker, null)
+  })
+
+  t('a worker with no stated envelope is refused — the rule needs something to check against', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const r = run('state.ts', ['worker', 'acme-runner', '--dispatch', DISPATCH, '--root', d])
+    eq(r.code, 1)
+    const f = json<WorkerResult>(r)
+    eq(f.ok, false)
+    assert(f.error?.includes('--does'), `the refusal did not name the missing field: ${f.error}`)
+  })
+
+  t('the generated announce line carries the envelope, so a dispatched agent can apply the same rule', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const w = json<WorkerResult>(record(d))
+    const line = w.worker?.announce ?? ''
+    assert(line.includes('acme-runner'), 'announce line does not name the worker')
+    assert(line.includes(DOES), 'announce line does not carry what the worker covers')
+  })
+
+  t('an explicit announce line wins over the generated one', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const w = json<WorkerResult>(record(d, 'acme-runner', ['--announce', 'USE THE RUNNER.']))
+    eq(w.worker?.announce, 'USE THE RUNNER.')
+  })
+
+  t('the worker survives the process — a fresh read still reports it', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    const s = json<Snapshot>(run('state.ts', ['show', '--root', d]))
+    eq(s.worker?.name, 'acme-runner', 'state.json did not carry the worker across processes')
+    eq(s.worker?.does, DOES)
+  })
+
+  t('none clears it and the ledger records both the set and the clear', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    eq(json<WorkerResult>(run('state.ts', ['worker', 'none', '--root', d])).worker, null)
+    const ledger = fs.readFileSync(path.join(wsOf(d), 'ledger.md'), 'utf8')
+    assert(ledger.includes('worker** set to `acme-runner`'), 'setting the worker was not recorded')
+    assert(ledger.includes('worker** cleared'), 'clearing the worker was not recorded')
+  })
+
+  t('bare worker asks rather than mutates', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const r = json<WorkerResult>(run('state.ts', ['worker', '--root', d]))
+    eq(r.worker, null)
+    assert(r.directive?.startsWith('NO_WORKER'), `expected NO_WORKER, got ${r.directive}`)
+    eq(json<Snapshot>(run('state.ts', ['show', '--root', d])).worker, null)
+  })
+
+  t('context reports WORKER_ACTIVE with the envelope, so a resumed session can route by capability', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    const c = json<ContextReport>(run('context.ts', ['--root', d]))
+    eq(c.worker?.name, 'acme-runner')
+    const dir = c.directives.find((x) => x.code === 'WORKER_ACTIVE')
+    assert(dir, 'no WORKER_ACTIVE directive — a resumed session would never learn about the worker')
+    assert(dir.say.includes(DISPATCH), 'the directive does not name the dispatch call')
+    assert(dir.say.includes(DOES), 'the directive does not name what the worker covers')
+  })
+
+  t('the brief prints the executor line', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    const brief = run('context.ts', ['--brief', '--root', d]).out
+    assert(/executor: acme-runner/.test(brief), `executor line missing from brief:\n${brief.slice(0, 400)}`)
+  })
+
+  t('every job resolution names the executor and what is never delegated', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    const text = run('skills.ts', ['resolve', 'implement'], { cwd: d }).out
+    assert(text.includes('executor: acme-runner'), `resolve did not name the executor:\n${text.slice(0, 300)}`)
+    assert(text.includes('keep with you:'), 'resolve did not say what never leaves the orchestrator')
+  })
+
+  t('a worker that is not a local skill is flagged as one to confirm, not as installed', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    record(d)
+    const r = json<WorkerReport>(run('skills.ts', ['worker', '--json'], { cwd: d }))
+    eq(r.active?.name, 'acme-runner')
+    eq(r.active?.skillInstalledHere, false)
+    assert(r.keep.length >= 3, 'the keep list did not survive into the report')
+  })
+
+  t('a malformed worker field is corruption, not a quiet null', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    const f = path.join(wsOf(d), 'state.json')
+    const raw = JSON.parse(fs.readFileSync(f, 'utf8')) as Record<string, unknown>
+    raw['worker'] = { name: 'acme-runner' }
+    fs.writeFileSync(f, JSON.stringify(raw))
+    const r = run('state.ts', ['show', '--root', d])
+    eq(r.code, 2)
+    assert(r.out.includes('CORRUPT_STATE'), `a half-written worker was read as readable state:\n${r.out.slice(0, 200)}`)
+  })
+
+  t('handoff carries the worker so the next session inherits the executor', () => {
+    const d = project()
+    run('state.ts', ['init', '--root', d])
+    run('state.ts', ['start', 'w', '--root', d])
+    record(d)
+    const h = json<{ worker: WorkerView | null; directive: string }>(run('state.ts', ['handoff', '--root', d]))
+    eq(h.worker?.name, 'acme-runner')
+    assert(h.directive.includes('acme-runner'), 'the handoff directive does not tell the writer to name the worker')
+  })
+
+  t('the skill itself names no specific worker — doctor guards the generic rule', () => {
+    const r = json<DoctorReport>(run('doctor.ts', ['--json']))
+    const leaked = r.problems.filter((p) => p.msg.includes('names a specific worker'))
+    eq(leaked, [], 'a worker name leaked into the skill text')
   })
 })
 

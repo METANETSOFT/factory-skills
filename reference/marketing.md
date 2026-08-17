@@ -126,8 +126,8 @@ Same skeleton, two substitutions: the audience line becomes the reader's startin
 ## Refutation pass
 
 Do not re-read your own draft and call it checked. A generator grading its own work confidently praises it, and the documented failure is
-identifying a legitimate problem and then talking itself into deciding it was not a big deal. Dispatch one subagent carrying the deliverable
-and the claim table and **not** the drafting history — split by context boundary, not by role. Its only instruction is to refute: for each row
+identifying a legitimate problem and then talking itself into deciding it was not a big deal. Dispatch one agent — the recorded worker when refutation is inside its envelope, announce line included (Law 11, [worker.md](worker.md)) — carrying the deliverable
+and the claim table and **not** the drafting history: split by context boundary, not by role. Its only instruction is to refute: for each row
 it returns exactly one of `source found` / `source not found` / `source contradicts`, with the `file:line`, command or URL it used. A row that
 survived only because the reviewer could not find the source is `unverified`, and `unverified` means the sentence is deleted, not reworded.
 `<workspace>/work/<slug>/evidence/claims.md` is the graded artefact; where the run also ships code, [verify.md](verify.md)'s `EVIDENCE.md` indexes it rather than restating it.

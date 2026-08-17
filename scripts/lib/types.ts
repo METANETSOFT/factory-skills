@@ -44,6 +44,35 @@ export interface OpenItem {
   at: string
 }
 
+/**
+ * A worker: anything present in this session's context that executes work on
+ * the factory's behalf — a delegation skill, an MCP server, a gateway. The
+ * factory never names a specific one. Which worker exists is a fact about the
+ * session, discoverable only by the agent reading its own context, so it is
+ * recorded here rather than hardcoded anywhere.
+ *
+ * It lives in State because a worker the session forgets after /clear silently
+ * reverts every later dispatch to the path the user asked to stop using.
+ */
+export interface WorkerRef {
+  /** Whatever it is called here. The factory does not care, and never assumes. */
+  name: string
+  /** How it arrived: a loaded skill, an MCP server, or something else stated. */
+  kind: string
+  /** The call that dispatches to it, verbatim. Without this a brief has nothing to invoke. */
+  dispatch: string
+  /**
+   * What it can actually do, in the agent's own words. This is the gate: a job
+   * outside this envelope is not delegated to it, however cheap it is. Recorded
+   * rather than inferred, because only the agent that read the worker's own
+   * description knows where its edges are.
+   */
+  does: string
+  /** The line every brief carries so a dispatched agent routes its own labor the same way. */
+  announce: string
+  at: string
+}
+
 export interface SessionState {
   startedAt: string
   counts: Partial<Record<SessionEvent, number>>
@@ -55,6 +84,7 @@ export interface State {
   createdAt: string
   phase: Phase
   work: WorkRef | null
+  worker: WorkerRef | null
   slice: { done: number; total: number }
   session: SessionState
   open: OpenItem[]

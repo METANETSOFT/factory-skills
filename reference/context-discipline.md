@@ -99,6 +99,12 @@ the last hypothesis tested with what it ruled out. If nothing is failing: "None 
 caps, not on a failure." Never leave this heading empty. Dead hypotheses are the most valuable thing
 a debugging handoff carries, because the next session's default is to try them again.>
 
+## Executor
+<The worker from `state.ts show` → worker: its name, and the envelope it covers, or "harness
+subagent". The next session cannot see what this one was carrying — `state.json` holds it, this
+heading is what makes the next session act on it. Omitting it hands over a run that silently
+reverts. See [worker.md](worker.md).>
+
 ## Open items
 <Verbatim from `state.ts show` → openItems, numbers kept so `state.ts resolve <n>` still works.>
 - #<n> <kind>: <text>

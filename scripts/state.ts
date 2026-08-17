@@ -25,6 +25,8 @@
 //   node state.ts note <kind> <text...>      → ruling|unfinished|risk|decision|evidence
 //   node state.ts resolve <n>                → close an open unfinished item
 //   node state.ts tick <event> [count]       → count a session event (read|edit|slice|fix|subagent)
+//   node state.ts worker <name> --dispatch "<call>" --does "<what it covers>"
+//                                            → record the worker this session dispatches through (any skill or MCP)
 //   node state.ts handoff                    → freeze session, emit handoff path
 //   node state.ts finish                     → close the current work
 
@@ -40,6 +42,7 @@ import type {
   SessionEvent,
   SessionState,
   State,
+  WorkerRef,
   WorkRef,
 } from './lib/types.ts'
 
@@ -74,8 +77,15 @@ const argv = process.argv.slice(2)
 interface Flags {
   root?: string
   title?: string
+  dispatch?: string
+  does?: string
+  kind?: string
+  announce?: string
   inProject: boolean
 }
+
+/** Flags that take the next argument as their value. Anything else stays in the text. */
+const VALUE_FLAGS = ['--root', '--title', '--dispatch', '--does', '--kind', '--announce'] as const
 
 /**
  * Split argv into flags and text.
@@ -100,11 +110,10 @@ function parseArgv(args: readonly string[]): { positional: string[]; flags: Flag
       flags.inProject = true
       continue
     }
-    if (a === '--root' || a === '--title') {
+    if ((VALUE_FLAGS as readonly string[]).includes(a)) {
       const value = args[i + 1]
       if (value === undefined) return { positional, flags, error: `${a} needs a value` }
-      if (a === '--root') flags.root = value
-      else flags.title = value
+      flags[a.slice(2) as 'root' | 'title' | 'dispatch' | 'does' | 'kind' | 'announce'] = value
       i += 1
       continue
     }
@@ -135,6 +144,7 @@ function blankState(): State {
     createdAt: nowISO(),
     phase: 'uninitialized',
     work: null,          // { slug, title, startedAt, dir }
+    worker: null,        // { name, kind, dispatch, does, announce, at } — whatever executes for us
     slice: { done: 0, total: 0 },
     session: { startedAt: nowISO(), counts: {}, handoffs: 0 },
     open: [],            // unresolved items: { n, kind, text, at }
@@ -158,6 +168,15 @@ const isWorkRef = (v: unknown): v is WorkRef | null =>
   (isRecord(v) && isString(v['slug']) && isString(v['title']) && isString(v['startedAt']) && isString(v['dir']))
 const isSlice = (v: unknown): v is { done: number; total: number } =>
   isRecord(v) && isNumber(v['done']) && isNumber(v['total'])
+const isWorkerRef = (v: unknown): v is WorkerRef | null =>
+  v === null ||
+  (isRecord(v) &&
+    isString(v['name']) &&
+    isString(v['kind']) &&
+    isString(v['dispatch']) &&
+    isString(v['does']) &&
+    isString(v['announce']) &&
+    isString(v['at']))
 
 /**
  * Counters are read tolerantly. A file written before `tick` validated its
@@ -240,6 +259,7 @@ function toState(v: unknown): { ok: true; state: State } | { ok: false; why: str
     createdAt: need('createdAt', v['createdAt'], isString, blank.createdAt),
     phase: need('phase', v['phase'], isPhase, blank.phase),
     work: need('work', v['work'], isWorkRef, blank.work),
+    worker: need('worker', v['worker'], isWorkerRef, blank.worker),
     slice: need('slice', v['slice'], isSlice, blank.slice),
     session: session ?? blank.session,
     open: open ?? blank.open,
@@ -434,6 +454,19 @@ interface Artifact {
   bytes?: number
 }
 
+/**
+ * The brief line a dispatched agent needs in order to route its own labor the
+ * same way. Generated from what was recorded, never from a table of known
+ * worker names — the factory has no such table on purpose.
+ */
+function announceFor(name: string, kind: string, does: string): string {
+  return (
+    `DELEGATION: the ${name} ${kind} is available in this session and is the executor for work it covers ` +
+    `(${does}). Route your own labor through it rather than doing it yourself where the job fits that ` +
+    'envelope, and judge the evidence it returns — diffs, command output, file lists — rather than its confidence.'
+  )
+}
+
 function snapshot(s: State | null) {
   if (!s) {
     return {
@@ -466,6 +499,7 @@ function snapshot(s: State | null) {
     nextPhase,
     nextAction: s.phase === 'done' ? null : nextPhase === null ? 'finish' : `phase ${nextPhase}`,
     work: s.work,
+    worker: s.worker,
     workDir,
     artifacts,
     slice: s.slice,
@@ -649,6 +683,69 @@ try {
       break
     }
 
+    case 'worker': {
+      const name = positional[1]
+      // No name is a question, not a command: "what am I dispatching through?"
+      if (name === undefined) {
+        const f = read()
+        if (f.kind === 'corrupt') throw corruptFail(f.detail)
+        const active = f.kind === 'ok' ? f.state.worker : null
+        out({
+          ok: true,
+          worker: active,
+          directive: active
+            ? `WORKER_ACTIVE — ${active.name} covers: ${active.does}. Dispatch work inside that envelope with ${active.dispatch}, ` +
+              `and open every brief with: "${active.announce}"`
+            : 'NO_WORKER — none recorded, so a harness subagent is the executor. If a delegation skill or MCP is present in this session, record it with `state.ts worker <name> --dispatch "<call>" --does "<what it covers>"` so it survives /clear.',
+        })
+        break
+      }
+      const clearing = name === 'none' || name === 'off' || name === 'clear'
+      // Both fields are refused rather than defaulted. A worker with no dispatch
+      // call gives every later brief a tool that does not exist; a worker with
+      // no stated envelope gives the routing rule nothing to check a job
+      // against, and the rule is "delegate what it covers", not "delegate".
+      if (!clearing && (!flags.dispatch || !flags.does)) {
+        throw new Fail({
+          ok: false,
+          error: 'a worker needs --dispatch and --does',
+          usage: 'state.ts worker <name> --dispatch "<the exact call>" --does "<what it can do>" [--kind skill|mcp] [--announce "<brief line>"]',
+          why: 'Without the call a brief has nothing to invoke; without the envelope there is nothing to check a job against before delegating it.',
+        })
+      }
+      const kind = flags.kind ?? 'worker'
+      const ref: WorkerRef | null = clearing
+        ? null
+        : {
+            name,
+            kind,
+            dispatch: flags.dispatch ?? '',
+            does: flags.does ?? '',
+            announce: flags.announce ?? announceFor(name, kind, flags.does ?? ''),
+            at: nowISO(),
+          }
+      const saved = withLock((): State => {
+        const st = readStateOrBlank()
+        st.worker = ref
+        write(st)
+        appendLedger(
+          ref
+            ? `- ${nowISO()} — **worker** set to \`${ref.name}\` (${ref.kind}) — covers: ${ref.does}`
+            : `- ${nowISO()} — **worker** cleared; a harness subagent is the executor again`,
+        )
+        return st
+      })
+      out({
+        ok: true,
+        worker: saved.worker,
+        directive: ref
+          ? `WORKER_ACTIVE — every dispatch whose job falls inside "${ref.does}" goes through ${ref.name} (${ref.dispatch}). ` +
+            `A job outside that envelope, or one the playbook keeps with you, does not. Open every brief with: "${ref.announce}"`
+          : 'NO_WORKER — dispatches go back to harness subagents.',
+      })
+      break
+    }
+
     case 'handoff': {
       const frozen = withLock(() => {
         const st = readState()
@@ -668,6 +765,7 @@ try {
           closing,
           phase: st.phase,
           slice: st.slice,
+          worker: st.worker,
           openItems: st.open,
         }
       })
@@ -678,11 +776,15 @@ try {
         closedSession: frozen.closing,
         phase: frozen.phase,
         slice: frozen.slice,
+        worker: frozen.worker,
         openItems: frozen.openItems,
         directive:
           'Write ' +
           frozen.file +
           ' NOW, in full, before you do anything else. It must let a fresh session with zero prior context continue without asking the user a single question. ' +
+          (frozen.worker
+            ? `Name the active worker in it — \`${frozen.worker.name}\` — because the next session cannot see that the user switched it on. `
+            : '') +
           'Then tell the user to /clear and say "factory resume".',
       })
       break
@@ -715,7 +817,9 @@ try {
         usage: [
           'init', 'show', 'start <slug> [--title T]', 'phase <phase>', 'slice <done>/<total>',
           'note <ruling|unfinished|risk|decision|evidence> <text>', 'resolve <n>',
-          'tick <read|edit|slice|fix|subagent> [count]', 'handoff', 'finish',
+          'tick <read|edit|slice|fix|subagent> [count]',
+          'worker <name> --dispatch "<call>" --does "<what it covers>" [--kind skill|mcp] | worker none | worker',
+          'handoff', 'finish',
         ],
         phases: SETTABLE_PHASES,
         caps: SESSION_CAPS,

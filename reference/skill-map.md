@@ -17,6 +17,7 @@ The output prints in this order. Treat each line literally:
 | Line the script prints | What to do with it |
 |---|---|
 | `playbook: <path>  (read this first)` | Read that file before any skill. It carries the procedure, the artifact shape and the exit condition. |
+| `executor: <name>` | Who does the labor, printed first because it changes how the rest is used. A recorded worker takes every dispatch whose job falls inside the envelope printed beside it, with its announce line at the top of the brief — Law 11 and [worker.md](worker.md). |
 | `load — owns this job:` | The `prefer` set. Load every entry, unconditionally. It is the authority for that job. |
 | `load when the trigger applies:` | The `also` set, each printed with its trigger. Load one **only if its trigger is literally true** of the work in front of you. |
 | `external (not a local skill):` | Not a skill on disk — see External below. It never counts as loaded craft. |
@@ -24,6 +25,17 @@ The output prints in this order. Treat each line literally:
 | `[installed]` `[builtin]` `[missing]` | The status prefix on every skill line. It selects the tier below. |
 
 One resolve per job kind per session. Re-resolving because you have forgotten the answer spends a tool round to return what is already in your context; if you have genuinely lost it, that is a context signal — hand off (Law 2), do not re-derive.
+
+## Skills are read; workers are dispatched to
+
+Two different axes, and conflating them is how a worker sits in a session and changes nothing. A skill answers *what standard applies*; a worker answers *whose hands apply it*, for the jobs it is actually able to do. With a worker recorded the tier table below does not lapse — it moves: a `prefer` skill's standard gets written into the brief you send rather than read by you, and a `missing` skill's degrade note becomes the floor you state in that brief.
+
+```bash
+node ${CLAUDE_SKILL_DIR}/scripts/skills.ts worker    # the executor, and what is never delegated
+node ${CLAUDE_SKILL_DIR}/scripts/state.ts worker <name> --dispatch "<call>" --does "<what it covers>"
+```
+
+Workers are deliberately absent from this map. A skill can be listed because it either exists on disk or does not; a worker is whatever the *session* happens to carry — a loaded delegation skill, a connected MCP — which no file can know in advance, and a name written down here would be a routing rule with an expiry date. So it is recorded at runtime from what you can see, and the envelope you record is what every later dispatch is checked against.
 
 ## The three tiers
 
@@ -57,7 +69,7 @@ Silence is the failure this prevents. A user who installed a design skill and re
 | `product` | [product.md](product.md) | — | obsidian-memory |
 | `architecture` | [architecture.md](architecture.md) | — | code-structure, drawio-skill |
 | `program-design` | [program-design.md](program-design.md) | — | code-structure |
-| `implement` | [implement.md](implement.md) | full-output-enforcement | find-docs, kole-kimi, omniroute-router |
+| `implement` | [implement.md](implement.md) | full-output-enforcement | find-docs |
 | `verify` | [verify.md](verify.md) | — | run, code-review, security-review |
 | `review` | [verify.md](verify.md) | code-review | simplify, security-review |
 | `debug` | [debug.md](debug.md) | — | find-docs, run |

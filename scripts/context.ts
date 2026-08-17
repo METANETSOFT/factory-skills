@@ -27,6 +27,7 @@ import type {
   SessionEvent,
   SessionState,
   State,
+  WorkerRef,
   WorkRef,
 } from './lib/types.ts'
 
@@ -147,6 +148,7 @@ function projectShape(): ProjectReport {
 interface StateView {
   phase: Phase | null
   work: WorkRef | null
+  worker: WorkerRef | null
   slice: State['slice'] | null
   open: OpenItem[]
   session: SessionState | null
@@ -159,6 +161,9 @@ const isWorkRef = (v: unknown): v is WorkRef | null =>
   v === null ||
   (isRecord(v) && isString(v['slug']) && isString(v['title']) && isString(v['startedAt']) && isString(v['dir']))
 const isSlice = (v: unknown): v is State['slice'] => isRecord(v) && isNumber(v['done']) && isNumber(v['total'])
+const isWorkerRef = (v: unknown): v is WorkerRef | null =>
+  v === null ||
+  (isRecord(v) && isString(v['name']) && isString(v['dispatch']) && isString(v['announce']) && isString(v['at']))
 const isOpenItem = (v: unknown): v is OpenItem =>
   isRecord(v) &&
   isNumber(v['n']) &&
@@ -222,6 +227,7 @@ function readStateFile(): StateRead {
   }
   const phase = field('phase', isPhase)
   const work = field('work', isWorkRef)
+  const worker = field('worker', isWorkerRef)
   const slice = field('slice', isSlice)
   const open = field('open', isOpenItems)
   const rawSession = obj['session']
@@ -229,7 +235,7 @@ function readStateFile(): StateRead {
   if (rawSession !== undefined && session === null) wrong.push('session')
 
   if (wrong.length) return { kind: 'corrupt', detail: `state.json field(s) not readable: ${wrong.join(', ')}` }
-  return { kind: 'ok', view: { phase, work, slice, open: open ?? [], session } }
+  return { kind: 'ok', view: { phase, work, worker, slice, open: open ?? [], session } }
 }
 
 function tailLedger(n = 14): string[] {
@@ -290,6 +296,21 @@ if (stateFile.kind === 'corrupt') {
       say: 'No active unit of work. Start one with `state.ts start <slug> --title "..."` before entering the pipeline.',
     })
   }
+  // A worker survives /clear in state.json but not in the session's head, so a
+  // resumed session that is not told about it silently reverts every dispatch
+  // to a harness subagent — undoing the reason the worker was chosen, without
+  // ever saying so.
+  if (s?.worker) {
+    directives.push({
+      code: 'WORKER_ACTIVE',
+      say:
+        `A worker is recorded for this project: \`${s.worker.name}\` (${s.worker.kind}), covering: ${s.worker.does}. ` +
+        `Any job inside that envelope is dispatched to it with ${s.worker.dispatch} rather than to a harness subagent, ` +
+        `and every brief opens with "${s.worker.announce}" so the agent you dispatch routes its own labor the same way. ` +
+        'A job outside the envelope stays where it is — capability decides. Run `skills.ts worker` for what is never ' +
+        'delegated. If it is gone from this session, clear it with `state.ts worker none` rather than dispatching into a void.',
+    })
+  }
   if (s?.open.length) {
     directives.push({
       code: 'OPEN_ITEMS',
@@ -337,6 +358,7 @@ const report = {
   stateCorrupt: stateFile.kind === 'corrupt' ? stateFile.detail : null,
   phase: s?.phase ?? null,
   work: s?.work ?? null,
+  worker: s?.worker ?? null,
   slice: s?.slice ?? null,
   openItems: s?.open ?? [],
   session: s?.session ?? null,
@@ -356,6 +378,7 @@ if (argv.includes('--brief')) {
     `factory @ ${ROOT}`,
     `workspace: ${DIR}${P.inProject ? ' (in project)' : ''}`,
     `phase: ${report.phase ?? '—'}   work: ${report.work?.title ?? '—'}   slice: ${report.slice ? `${report.slice.done}/${report.slice.total}` : '—'}`,
+    `executor: ${report.worker ? `${report.worker.name} (${report.worker.kind}) — covers: ${report.worker.does}` : 'harness subagent'}`,
     `git: ${gitLine}`,
     '',
     ...directives.map((d) => `[${d.code}] ${d.say}`),

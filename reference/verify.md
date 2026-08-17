@@ -14,6 +14,26 @@ Run all five, in order, for every sentence you are about to write that asserts s
 
 If any step fails, the claim is not available to you. Say what you could not prove and `state.ts note unfinished "<claim> unproven: <why>"` (Law 3). A subagent reporting success is not evidence at any of the five steps — its diff and its command output are.
 
+## The subject rule: test the thing, not its sibling
+
+Step 4 catches the vertical mistake — proving a layer below the claim. This catches the horizontal one: proving a *different implementation of the same idea* and reporting the verdict as if it covered both. It is the more dangerous of the two, because the output looks like a clean pass or a clean failure either way, and nothing in it names the subject you actually measured.
+
+**Pick the reference by what the subject uses, never by what is known to work.** When you need a request shape, a fixture, a client config, the pull is to copy the sibling that is currently green — it is proven, it saves a read, and it is *correct engineering when you are building*. In diagnosis it inverts: the reference must be the subject itself, because the whole question is whether the subject's own path still works. Copying the healthy sibling measures the sibling.
+
+**Count the mechanisms behind the name before you test it.** One word in the ticket — "auth", "search", "the API", "upload" — routinely covers several independent paths: two clients, a v1 and a v2, a cached and an uncached road, a library and a hand-rolled fallback. Open the caller and follow it to the code that will actually run. Each mechanism is measured on its own; a result from one carries no information about the others.
+
+**The conclusion inherits the scope of the measurement.** If the brief said *test path X*, the report may not say *Y is broken* unless you established that X covers Y. Write the measurement's name into the verdict sentence and the error becomes visible while you are typing it:
+
+| Wrote | Measured | Honest form |
+|---|---|---|
+| "YouTube is blocked" | one of three client paths | "the InnerTube path returns LOGIN_REQUIRED; the yt-dlp path is untested" |
+| "auth is broken" | the session cookie flow | "cookie auth fails; the token flow was not exercised" |
+| "the API is down" | one endpoint, one region | "`/v2/search` 503s from eu-west; other endpoints unchecked" |
+
+**Treat a coherent story as an alarm, not a confirmation.** Several signals agreeing feels like corroboration and is often the opposite: independent mechanisms failing for independent reasons, collapsed into one narrative because a single explanation covers all of them. Before the story closes, ask once — *are these measuring the same mechanism, or am I merging separate failures?* The cheapest tell is that the signals came from different code paths.
+
+**Cost asymmetry decides how much proof you need.** When one direction of error is silent — a working thing switched off, a paid surface taken down, data quietly dropped — nothing will page you when you get it wrong, so it needs the stronger evidence. The loud direction reports itself and can be corrected on arrival. Weigh the two before deciding the test is sufficient, not after.
+
 ## Banned vocabulary
 
 Before any status sentence, scan it for these. Each one is the grammar of a claim that skipped step 2.
@@ -94,7 +114,7 @@ That last line exists because of a measured failure: the evaluator identifies a 
 
 **Then verify the reviewer.** Its returned count is prose, and Law 1 exempts nobody you dispatched: a fabricated `git bisect` result and a claim to have "written a test and confirmed" something never run are both first-hand documented. Read the rows in `EVIDENCE.md` yourself, and reproduce the stated command on every `blocking` row in this message before you accept it *or* dismiss it. A blocking finding that does not reproduce is a finding about the reviewer — re-dispatch with the failed reproduction in the brief.
 
-Calibrate harshness at **7/10**. At 10 the reviewer turns contrarian and generates findings costing more to dismiss than the real ones cost to fix; below 5 it drifts back into praise. Adversarial personas improve findings per token, so one sceptical reviewer beats three agreeable ones — and multi-agent runs burn 3–10× the tokens, so dispatch for context isolation, not for theatre. `state.ts tick subagent` per dispatch and `state.ts tick fix` per review-fix round; the caps are 12 and 8, and crossing one returns `HANDOFF_NOW`. Eight fix rounds on one diff is not convergence — revert to the last green commit and improve the slice brief rather than stacking a ninth patch on a bad base. Route the pass rather than improvising it: `skills.ts resolve review` names `code-review` for correctness, `security-review` where the change touches auth, secrets, input handling or a network boundary, `simplify` for a diff that works but duplicates. Installed → use it; missing but installable → offer the one-line install; unavailable → take the degraded path and say out loud that you are on it (Law 9).
+Calibrate harshness at **7/10**. At 10 the reviewer turns contrarian and generates findings costing more to dismiss than the real ones cost to fix; below 5 it drifts back into praise. Adversarial personas improve findings per token, so one sceptical reviewer beats three agreeable ones — and multi-agent runs burn 3–10× the tokens, so dispatch for context isolation, not for theatre. `state.ts tick subagent` per dispatch and `state.ts tick fix` per review-fix round; the caps are 12 and 8, and crossing one returns `HANDOFF_NOW`. Eight fix rounds on one diff is not convergence — revert to the last green commit and improve the slice brief rather than stacking a ninth patch on a bad base. Route the pass rather than improvising it: `skills.ts resolve review` names `code-review` for correctness, `security-review` where the change touches auth, secrets, input handling or a network boundary, `simplify` for a diff that works but duplicates. Installed → use it; missing but installable → offer the one-line install; unavailable → take the degraded path and say out loud that you are on it (Law 9). `skills.ts resolve review` also names the executor: where reviewing this diff is inside the recorded worker's envelope, the pass is dispatched to it read-only, carrying its announce line and the review skill's standard written into the brief (Law 11, [worker.md](worker.md)). Different hands do not lower the bar — you still reproduce every blocking row yourself, and a reviewer that cites nothing reviewed nothing.
 
 ## Artefacts, and where artefacts lie
 

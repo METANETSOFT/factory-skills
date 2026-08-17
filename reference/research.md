@@ -30,9 +30,10 @@ Write the question into the artifact first, in one or two sentences. An agent th
 
 **Split by context boundary, not by role.** One subagent per area understandable without the others: "the upload path", "the auth middleware", "how migrations run here". Never planner → reader → summariser: role-splitting is an Anthropic-cited anti-pattern that produces a telephone game losing fidelity at each handoff. Multi-agent runs cost **3–10× the tokens** of a single agent for the same work, so delegate for context isolation and nothing else — two subagents on one area is theatre.
 
-A subagent starts with **zero context** and receives only what you write. An unbriefed subagent returns a competent-sounding tour with no citations, and you cannot tell whether it read the code or guessed:
+A subagent starts with **zero context** and receives only what you write. An unbriefed subagent returns a competent-sounding tour with no citations, and you cannot tell whether it read the code or guessed. Check the executor before the first dispatch — `node ${CLAUDE_SKILL_DIR}/scripts/skills.ts worker`: if reading and searching this codebase is inside the recorded worker's envelope, recon goes to it read-only, with its announce line verbatim at the top (Law 11, [worker.md](worker.md)). Recon is the labor most worth moving off your own context and the most expensive to do yourself.
 
 ```
+<the recorded worker's announce line, verbatim, when recon is inside its envelope>
 Goal: <the one question this subagent answers, verbatim from the artifact>
 Why: <what decision downstream depends on this — it prioritises differently when it knows>
 Scope: <paths, entry points or symbols to start from. What is out of scope.>

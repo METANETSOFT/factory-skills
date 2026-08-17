@@ -16,7 +16,7 @@ One optional second call, and it is the only one that earns its cost:
 node ${CLAUDE_SKILL_DIR}/scripts/state.ts show
 ```
 
-It writes nothing and returns exactly what the tables below need: `artifacts` (present/bytes for `RESEARCH.md` `PRD.md` `ARCHITECTURE.md` `PROGRAM-DESIGN.md` `PLAN.md` `HANDOFF.md`), `openItems` with their text, `nextPhase`, and `pressure`. Without it the "only if the artifact exists" gates below are guesses, and a recommendation to advance a phase whose input was never written is how a plan gets built on an architecture that does not exist.
+It writes nothing and returns exactly what the tables below need: `artifacts` (present/bytes for `RESEARCH.md` `PRD.md` `ARCHITECTURE.md` `PROGRAM-DESIGN.md` `PLAN.md` `HANDOFF.md`), `openItems` with their text, `nextPhase`, `worker`, and `pressure`. `worker` fills the executor line in the menu; it costs no extra call, and a user who switched a delegation backend on wants to see that the factory knows. Without it the "only if the artifact exists" gates below are guesses, and a recommendation to advance a phase whose input was never written is how a plan gets built on an architecture that does not exist.
 
 **Ceiling: two Bash calls, one optional Read of `<workspace>/slop-baseline.json`, zero source files, zero subagents.** Do not run `slop.ts check`, do not grep the codebase, do not open `PLAN.md` "to see where we got to". A menu that costs a repo scan is a phase in disguise; the user asked what to do, not for it to be done.
 
@@ -35,6 +35,8 @@ Several signals fire at once. Take the first that applies as pick 1, then the ne
 | 7 | `NO_CHARTER` with state present | `/factory init` | `FACTORY.md` is missing, so the next fresh session re-litigates settled decisions |
 | 8 | `NO_TEST_COMMAND` and phase is `plan` or later | agreeing a verify command with the user | verify has nothing to run, so its evidence would be prose |
 | 9 | phase is `plan` or `implement` and `<workspace>/slop-baseline.json` is absent | `node ${CLAUDE_SKILL_DIR}/scripts/slop.ts baseline` | drift is unmeasurable without a line to compare against |
+
+One signal is not in `state.ts show` and only you can see it: this session carries a worker — a delegation skill, a connected MCP that executes work for you — and `worker` is still null. That outranks nothing and displaces nothing, but say it in one line under the menu: `/factory worker <name>` records it, and until it is recorded every later dispatch quietly goes to a harness subagent instead ([worker.md](worker.md)).
 
 Rank 5 recommends `/factory research <topic>`; **do not run `state.ts start` yourself** — [research.md](research.md) opens with it, and running it here is a mutation this turn is not allowed to make. Rank 9's check is a single Read of `<workspace>/slop-baseline.json`; a not-found error *is* the signal. See [anti-slop.md](anti-slop.md).
 
@@ -71,6 +73,7 @@ One block. Fill every angle bracket from real state; never print a bracket you c
 
 ```
 factory — <phase | not initialized> · <work title | no active work> · slice <done>/<total> · <branch><, N dirty> · <N open>
+executor: <worker name | harness subagent>
 
 Recommended
   1. <exact command text>          <one line: the observed fact that makes this the next move>
@@ -79,7 +82,7 @@ Recommended
 
 Pipeline   /factory research · product · architecture · program-design · plan · implement · verify · review
 Jobs       /factory design <target> · marketing <target> · debug <symptom> · loop <goal>
-Session    /factory status · handoff · resume · skills · init
+Session    /factory status · handoff · resume · skills · worker · init
 
 Say a number or type a command.
 ```

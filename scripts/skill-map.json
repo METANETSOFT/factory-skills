@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "note": "Machine-readable twin of reference/skill-map.md. skills.ts resolves a job kind to the skills that should be loaded before work starts. `prefer` is loaded first and owns the job; `also` is loaded only when its trigger applies; `external` is not installed locally and must be fetched. Nothing here is vendored into the factory — these are references. If a skill is installed, use it; if not, offer the install line; if it cannot be installed, follow its `degrade` note and say out loud that you are on the degraded path.",
+  "note": "Machine-readable twin of reference/skill-map.md. skills.ts resolves a job kind to the skills that should be loaded before work starts. `prefer` is loaded first and owns the job; `also` is loaded only when its trigger applies; `external` is not installed locally and must be fetched. Who *executes* a job is a separate axis and is deliberately not in this file: a worker is whatever delegation skill or MCP happens to be in the session's context, so it is recorded at runtime with `state.ts worker` and surfaced on every resolution — see reference/worker.md. Nothing here is vendored into the factory — these are references. If a skill is installed, use it; if not, offer the install line; if it cannot be installed, follow its `degrade` note and say out loud that you are on the degraded path.",
 
   "registry": {
     "_comment": "Provenance for every skill this map routes to. `source` is recorded ONLY where it is actually known — a guessed repo URL is worse than none, because it sends the user somewhere that does not exist. Where the source is unknown, `find` says how to locate it and `degrade` says what to do without it.",
@@ -62,8 +62,6 @@
     "full-output-enforcement": { "find": "gh search repos full-output-enforcement", "degrade": "Law 2 and Law 4 already carry this: no truncation, no placeholders, and a token limit means a handoff rather than an abridged file." },
     "obsidian-memory": { "find": "user-specific — this one is wired to a private CouchDB/Obsidian vault", "degrade": "Durable facts go to FACTORY.md and the ledger instead. Do not attempt to reach a memory backend that is not configured." },
     "searxng-search-internet": { "find": "https://github.com/searxng/searxng for the engine; the skill wraps a user-hosted instance", "degrade": "Use the built-in WebSearch and WebFetch tools." },
-    "kole-kimi": { "find": "user-specific — routes work to Kimi K3 through a local CLIProxyAPI gateway", "degrade": "Do the work yourself. Never route work to a gateway that is not configured." },
-    "omniroute-router": { "find": "user-specific — an OmniRoute gateway must be running", "degrade": "Do the work yourself rather than routing to an unavailable gateway." },
     "drawio-skill": { "find": "gh search repos drawio skill claude  — requires the draw.io desktop CLI", "degrade": "Write the diagram as Mermaid in the artifact; it renders in markdown and in published artifacts without any external binary." },
     "agent-browser": {
       "source": "https://github.com/humanlayer/fold/tree/main/.claude/skills/agent-browser — CLI published as `agent-browser`",
@@ -121,12 +119,10 @@
     "implement": {
       "playbook": "reference/implement.md",
       "prefer": ["full-output-enforcement"],
-      "also": ["find-docs", "kole-kimi", "omniroute-router"],
+      "also": ["find-docs"],
       "triggers": {
         "full-output-enforcement": "always — it is the anti-truncation contract",
-        "find-docs": "any library API is being called",
-        "kole-kimi": "the user has asked to delegate grunt work to Kimi",
-        "omniroute-router": "the work is bulk and routine and quota matters"
+        "find-docs": "any library API is being called"
       },
       "external": []
     },
