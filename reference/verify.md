@@ -34,6 +34,24 @@ Step 4 catches the vertical mistake — proving a layer below the claim. This ca
 
 **Cost asymmetry decides how much proof you need.** When one direction of error is silent — a working thing switched off, a paid surface taken down, data quietly dropped — nothing will page you when you get it wrong, so it needs the stronger evidence. The loud direction reports itself and can be corrected on arrival. Weigh the two before deciding the test is sufficient, not after.
 
+## Speed is a default, not a constraint — diagnosis pays full price
+
+Preferring the fast path is right while you are *building*: it is a real economy, and the thing being checked is your own change. It inverts the moment something is **wrong**. In diagnosis the fast path is usually not a cheaper version of the real path — it is a *different* path, and its result is about that different thing.
+
+The trap has a shape. The honest check takes a minute, a lighter cousin takes a second, and you write the lighter one into the brief with a sentence like *"listing is enough, actually performing it is not required"*. That sentence reads as efficiency. It is the scope error being introduced by hand, one step before the report inherits it.
+
+**Before shortening a check, ask whether the shortened version still contains the step that is accused of failing.** If it does not, the saving is zero, because the result is void. Listing formats does not download. Compiling does not run. A HEAD does not fetch a body. A dry run does not write. A mock does not integrate.
+
+The lighter check does not merely tell you less — it can tell you the *opposite*. Measured: listing a video's formats returned exit 0 with empty stderr, a clean green, while downloading the same video with the same credentials returned `Sign in to confirm you're not a bot`. Trusting the fast check would have cleared the component that was actually broken and sent the hunt elsewhere.
+
+**Reproduce the real invocation, arguments included.** The arguments select the code path: `merged:360` muxes two streams and needs a muxer, `best[height<=360]` takes one and needs none. Same tool, same video, same proxy — different halves of the program.
+
+The economics are not close. The honest check costs seconds to minutes, once; a wrong verdict from a lighter one takes the wrong thing offline and keeps it there until a human notices. A measurement is not overhead to be minimised — it is the only reason the conclusion is allowed to exist.
+
+**Two modes, and say which one you are in.** While building, take the fast path and move. The moment you are diagnosing — something failed, something is suspected, something is about to be switched off — take the faithful path even when it is slower, and say so out loud so the report carries it.
+
+> Reproduce the actual failing operation end to end, with its real arguments. Do not substitute a lighter equivalent. If it is slow, it is slow — report the raw output.
+
 ## Banned vocabulary
 
 Before any status sentence, scan it for these. Each one is the grammar of a claim that skipped step 2.
