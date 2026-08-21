@@ -13,6 +13,8 @@ node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve product
 
 Read `FACTORY.md` and `<workspace>/work/<slug>/RESEARCH.md` in full **in this session**, not from the memory of having written them — facts lose the attention competition against more recent tokens. The charter's Definition of done is the parent of everything here; contradicting it silently is how one project ends up with two "done"s. If research has not run and this touches code nobody has read, run [research.md](research.md) first: a misread fact becomes an architecture several PRs later, and product is the phase where a wrong assumption gets the most leverage. Announcement before outcome, outcome before criteria — reversed, you get the metric that was easiest to measure with a problem statement written afterwards to justify it.
 
+**If the shape of this work is still one sentence, interview before you write** (Law 12, [grill.md](grill.md)). A PRD is the first document that turns an assumption into a requirement, and every phase after it inherits whichever reading you happened to pick. The interview is minutes; the reading is the build. Where a term in the request has no agreed meaning here, settle that first as well (Law 13, [language.md](language.md)) — a PRD written in words the code does not use produces criteria nobody can check. If the user has told you not to be asked, skip the interview, not the decisions: each open branch becomes a ruling with its cost-if-wrong under *Open questions*, printed once in your reply.
+
 ## Step 1 — The announcement, before the thing
 
 Write the paragraph you would publish the day this ships — a changelog entry for an existing product, a launch note for a new one. Past tense, names the user and what changed for them, **under 120 words**, no feature list, no roadmap.
@@ -53,12 +55,12 @@ Every outcome carries all of these, written into the PRD's Outcome table:
 
 ## Step 4 — Mock every surface
 
-- **Anything with a surface gets HTML mockups before the PRD is final** — one self-contained file per screen per state, at `<workspace>/work/<slug>/mockup-<screen>-<state>.html`. No framework, no build step, no CDN link, inline CSS, opens over `file://`.
+- **A surface is anywhere a user meets this work** — a screen, a command, an endpoint, a message, a generated file, a voice prompt. Every one gets mocked before the PRD is final, in the cheapest form that shows its real shape: a self-contained HTML file per screen state at `<workspace>/work/<slug>/mockup-<screen>-<state>.html` (no framework, no build step, no CDN link, inline CSS, opens over `file://`); a literal terminal transcript for a command, prompt and output included; a request and its response, headers and status included, for an endpoint; the actual bytes for a file format. Same directory, same `mockup-<surface>-<state>` naming, `.txt` where HTML makes no sense. The medium changes; the rule does not — the user sees the shape before anyone builds it.
 - **Mandatory states**: default, empty / first-run, error — plus loading wherever a wait can exceed 400ms.
 - **Grey-box means checkable**: system font stack, greyscale fills, one accent used only on the interactive element, no brand colours, no imagery, no icon set. A mockup that looks finished gets approved as a design, and then the real design work arrives as an argument. Visual craft is owned by `impeccable` through [design.md](design.md); these are scope artifacts and are handed over as "this is the screen", never "this is the direction".
 - **Real-shaped data**: the longest realistic string, the true row count from `RESEARCH.md`, the actual error text. Lorem hides exactly the layout problem you are mocking to find.
 - Show them and ask one question: *is this the screen?* Do not block on the answer (Law 8) — proceed and note the ruling. Keep the files; implementation builds against them.
-- **Headless change with no surface**: say so explicitly in the PRD and give the command, request or log line that changes, before and after. Scope agreed in prose is discovered wrong during implementation, at the point where re-steering costs the most.
+- **A change with no surface at all** — one nothing outside the system observes: say so explicitly in the PRD and give the log line, metric or internal call that changes, before and after. "It has no screen" is not this case; a command and an endpoint are surfaces, and they get mocked in their own form above. Scope agreed in prose is discovered wrong during implementation, at the point where re-steering costs the most.
 
 ## Step 5 — Write PRD.md
 
@@ -152,7 +154,7 @@ All six true before [architecture.md](architecture.md) starts; anything you coul
 2. Outcome names a quantity with units, the command or rubric measuring it, a threshold as a comparison, and an observation point — at tier 1, 1b or 2, never a vibe.
 3. The baseline command was run this session and its raw output is at `<workspace>/work/<slug>/evidence/baseline-<metric>.txt`.
 4. Acceptance criteria: every row thresholded, at least one error path, at least one empty / first-run state, and none of the user's stated asks missing from both the criteria and Out of scope.
-5. Every surface in *What the user sees* has its mockup files on disk for each listed state, or the PRD states the change is headless and names the before/after.
+5. Every surface in *What the user sees* has its mock on disk for each listed state, in whatever form suits that surface, or the PRD states the change has no surface at all and names the before/after.
 6. The announcement is written, under 120 words, carrying no claim you could not back with the outcome number or a mockup.
 
 ## What product does not do

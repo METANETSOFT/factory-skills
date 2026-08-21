@@ -82,6 +82,7 @@ Recommended
 
 Pipeline   /factory research · product · architecture · program-design · plan · implement · verify · review
 Jobs       /factory design <target> · marketing <target> · debug <symptom> · loop <goal>
+Shared     /factory grill <subject> · language
 Session    /factory status · handoff · resume · skills · worker · init
 
 Say a number or type a command.
@@ -111,6 +112,8 @@ Then stop and wait. The closing line is load-bearing: it is what makes the three
 | Pipeline | `/factory implement [slice]` | one slice, fresh subagent, committed | [implement.md](implement.md) |
 | Pipeline | `/factory verify` | evidence that it works → `evidence/` | [verify.md](verify.md) |
 | Pipeline | `/factory review` | adversarial pass over the diff | [verify.md](verify.md) |
+| Jobs | `/factory grill <subject>` | interview to a shared understanding before any artifact | [grill.md](grill.md) |
+| Jobs | `/factory language` | settle the project's words and module names | [language.md](language.md) |
 | Jobs | `/factory design <target>` | interface, visual or motion work | [design.md](design.md) |
 | Jobs | `/factory marketing <target>` | positioning, copy, launch, docs | [marketing.md](marketing.md) |
 | Jobs | `/factory debug <symptom>` | mechanism before fix | [debug.md](debug.md) |
@@ -137,3 +140,5 @@ node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve <job>  # which skills own a j
 Before handing the turn back, all five must hold: **at most three recommendations**; **each carries an exact command string** the user can copy; **each reason names a value you read this turn** (a directive code, an artifact flag, a count, a branch); **the full menu block is printed with no unfilled brackets**; and **nothing mutated** — no phase advanced, no artifact written, no `state.ts` subcommand other than `show`, no subagent dispatched, no git operation.
 
 If the user's next message is a plain build request rather than a menu pick, do not reprint this menu — follow SKILL.md's Routing, enter the pipeline at the phase the request implies, and say which phase and why.
+
+**One check comes before that entry.** If the request would take a day, or two honest readings of it would produce different software, the first move is the interview, not the phase (Law 12, [grill.md](grill.md)) — and if a noun in it has no agreed meaning here, the vocabulary is settled first (Law 13, [language.md](language.md)). Neither writes an artifact, so neither is the mutation this turn forbids, and both cost a fraction of the artifact they precede. The exception is a user who has told you not to ask: then you enter the phase, and every branch you would have put to them becomes a ruling you record and print once.

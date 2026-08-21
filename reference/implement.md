@@ -58,6 +58,8 @@ FILES YOU MAY TOUCH: <the Files list from the slice, verbatim>. Outside it, stop
   instead of creating — an unbounded file list is how a slice grows from 80 lines to 900.
 INTERFACES: implement the signatures in PROGRAM-DESIGN.md exactly. If one is wrong, report it
   — do not redesign here. Resolve any third-party API through `npx ctx7@latest` before calling it.
+WORDS: <the terms this slice touches, from the project's vocabulary, one line each: term = meaning>.
+  Use these names in code, tests and commit messages. Do not invent a synonym for one of them.
 CONSTRAINTS (PROGRAM-DESIGN.md §Constraints wins where it names a different number):
   function ≤ 50 lines · cyclomatic complexity ≤ 10 · nesting ≤ 3 · parameters ≤ 4
   · no new abstraction with fewer than 2 real call sites · no error handling beyond top-level
@@ -101,6 +103,10 @@ Interfaces that did not survive contact: <name + what was actually needed>
 ```
 
 ## TDD ordering inside the slice
+
+**The rate of feedback is the speed limit** (Law 14). The size of a step is not a matter of taste: it is however much you can check with one command. Everything written between two checks is unverified, so a step that produces four files before anything runs has made four files suspect at once — and the model's instinct, left alone, is to write the whole slice and then think about testing it. That is what the ordering below exists to prevent, and it is why the brief asks for the failing test to be *shown* rather than promised.
+
+The corollary is that anything which makes feedback faster is worth building before the work that needs it: a test command that runs in seconds rather than minutes, a type checker in the loop, a way to exercise the running thing. A slow check is silently rounded down to no check.
 
 Test first. Watch it fail. Write only enough code to pass that one test. Watch it pass. Commit on green, then take the next test. Not: all the tests, then all the code — a test written after the code encodes what the code does rather than what was wanted, and passes on its first run, which proves nothing.
 

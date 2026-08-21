@@ -42,6 +42,20 @@ The type signature is the smallest part. Each of these is interface, because a c
 
 Anything a caller must know that is not written here becomes tribal knowledge, and the next agent starts with zero context and re-derives it wrongly.
 
+## Who reviews what
+
+Depth buys something beyond maintainability: it decides how much of the output a human has to read. A module whose interface says everything a caller needs can be reviewed from the outside — you read the boundary, you test at the boundary, and what happens inside is delegable to whatever hands are cheapest (Law 15). A shallow module cannot be reviewed that way by anyone, human or model: the only way to know what it does is to read all of it, every time it changes.
+
+So the review budget is set here, per module, and written into the design:
+
+| Module | Reviewed how | Why this level |
+|---|---|---|
+| `<name>` | boundary only / boundary and implementation | <one clause> |
+
+**Read the implementation too, always, when a wrong answer inside it is expensive and the check is not mechanical**: money, auth and permissions, deletion and retention, anything that writes to a system you cannot roll back, anything a regulator or a customer would ask about. That list is written down rather than felt, because under time pressure "I will read this one properly" is the first thing to go.
+
+Everywhere else, boundary review is not laziness — it is the only thing that makes a large diff comprehensible at all. What makes it safe is the interface being complete and the tests sitting at the seam, which is what the rest of this file is for. A module you would not review at the boundary is a module you have not finished designing.
+
 ## Deep or shallow — run these seven per module and write the verdict down
 
 | | Shallow | Deep |

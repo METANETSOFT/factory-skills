@@ -37,8 +37,19 @@ than making a generator critical of its own work." Dan Luu logged an agent fabri
 bisect` result, claiming a test it never ran, and producing a Playwright video of a bug repro that
 turned out to be entirely synthetic.
 
+**And the request was never shared in the first place.** The failure above all three is cheaper and
+more common: the model built the wrong thing correctly. Nobody knows exactly what they want until
+they are asked, and an agent that starts from one sentence has picked one reading of it and written
+it down as a requirement. Regenerating from a longer prompt does not fix this — it produces a
+different pile with the same shape, because the disagreement was never in the code. Matt Pocock's
+talk at [Vercel Ship AI](https://www.youtube.com/watch?v=v4F1gFy-hqg) names the parts: interview
+until the understanding is shared, agree the words before writing them, keep the feedback loop
+faster than the work, and treat the design as something bought on every change rather than restored
+by a rerun.
+
 So this skill ties its guarantees to things that execute: a state machine with session caps, a
-metric with a threshold, and a reviewer that is not the writer.
+metric with a threshold, a reviewer that is not the writer — and an interview before the first
+document.
 
 ---
 
@@ -63,6 +74,8 @@ skill degrades explicitly when an optional skill is missing rather than silently
 
 ```
 /factory init                 write FACTORY.md, the durable charter, and record a slop baseline
+/factory grill <subject>      interview you to a shared understanding before anything is written
+/factory language             settle the project's words and module names, once, in one file
 /factory research <topic>     what is actually true about this codebase right now
 /factory product              what problem, and how will we know it worked
 /factory architecture         services, flow, endpoints, tables
@@ -88,6 +101,12 @@ the verdict on the evidence.
 
 Typing `/factory` with no argument gives a menu built from the project's actual state, not a static
 list. It never auto-starts a phase.
+
+**On anything big, it asks before it writes.** Rounds of questions over the decision tree, each with
+its recommended answer, until nothing is left silently assumed — then the artifact. Tell it not to
+and it stops asking, but the decisions do not disappear: each becomes a ruling with its
+cost-if-wrong, printed once where objecting to a line is still cheap. Make that permanent by putting
+it in `FACTORY.md` under *How to work with me*, and no future session asks again.
 
 ---
 
@@ -135,6 +154,13 @@ single question. Context is a cache; the workspace is the truth.
 | plan | What are the vertical slices, in what order? |
 | implement | Slice by slice, fresh subagent each time |
 | verify | What evidence proves this works? |
+
+Two things run in front of that table rather than inside it, because both are cheaper than the first
+artifact they precede. **grill** turns a one-sentence request into a set of decisions you actually
+made — rounds of questions over the decision tree, ending when nothing is left assumed. **language**
+settles what the project's words mean, in one file both sides read, so the plan, the tests and the
+code all say the same thing. Neither writes a phase artifact and neither is a phase; they are what
+makes the phases worth writing.
 
 **program-design is the phase almost everyone skips and the one that pays.** Architecture names the
 modules; program design says what the code inside them will look like — decided while the context is
@@ -220,7 +246,7 @@ re-entry guard that stops a blocking hook trapping a session in a loop.
 
 ## The Laws
 
-Eleven standing rules that hold for the whole session, not just the turn that loaded them. In short:
+Fifteen standing rules that hold for the whole session, not just the turn that loaded them. In short:
 
 1. Evidence before claims — no status without a command run in this message
 2. Never trade completeness for space — a full window means hand off, never compress
@@ -233,6 +259,10 @@ Eleven standing rules that hold for the whole session, not just the turn that lo
 9. Route, don't reinvent
 10. Secrets never enter an artifact
 11. A present worker gets the work it covers — and never certifies its own output
+12. Agreement before artifacts — interview first, or turn every unasked question into a printed ruling
+13. One name per thing — the project's words, written once, used by everyone
+14. The rate of feedback is the speed limit — no step bigger than one command can check
+15. Every change either invests in the design or pays interest on it
 
 Law 10 is enforced by `.gitignore` and `.env.example`; the skill itself needs no credentials at all.
 
@@ -247,6 +277,11 @@ This skill is an implementation of other people's ideas, and it is worth naming 
   [ACE-FCA](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents). The
   deep-module vocabulary comes from their
   [`codebase-design`](https://github.com/humanlayer/fold/tree/main/.claude/skills/codebase-design) skill.
+- **[Matt Pocock](https://github.com/mattpocock/skills)** — grilling to a shared design concept, the
+  frontier rule that orders the rounds, the ubiquitous language as a file both sides read, and the
+  argument that bad code is the most expensive thing in an AI codebase. Behind those: Brooks' design
+  concept, Ousterhout's deep modules, the Pragmatic Programmer on entropy and outrunning your
+  headlights, Evans on ubiquitous language, and Kent Beck on investing in design every day.
 - **[obra/superpowers](https://github.com/obra/superpowers)** — evidence-before-claims, the
   completion gate, subagent-driven development, rulings-not-stalls, and the standard that a skill's
   `description` states *when to use it*, never what it does.
