@@ -104,6 +104,16 @@ Request → `routes/api.ts:22` → `middleware/auth.ts:14` → `upload/handler.t
 [One adapter is a hypothetical seam; two is a real one — this table is what stops the next
 phase inventing an abstraction that nothing varies behind.]
 
+## Words this code already uses
+| Term | Where it appears | The user's word for it |
+|---|---|---|
+| `<Order>` | `src/orders/model.ts:12`, table `orders` | "job" |
+
+[Harvest, do not invent. Types, tables, routes, events and directory names on the left; the
+words the user actually said on the right. Every row where the two columns disagree is a
+decision someone has to make — see language.md. Leave the right column blank rather than
+guessing at it.]
+
 ## Prior art in this repo
 [Where a similar problem was already solved, cited. The house pattern beats a better one.]
 
@@ -127,6 +137,12 @@ Three rules on this artifact, each blocking the next phase:
 1. **"What was NOT investigated" is non-empty**, unless you opened every source file in the repo and state how many. Omitting it converts unread code into implied confirmation — the exact path by which a misread early fact becomes an architecture.
 2. **Confidence caps at Medium when nobody involved has worked in this codebase before.** A clean set of subagent reports is not familiarity; parquet-java's shallow research came back looking complete.
 3. **Keep it under ~200 lines** (`wc -l`). Longer means the question was too broad — split it and run again. 200 lines is reviewable in minutes; 2,000 is not, and an unreviewable research doc pushes human review down to the diff, which is where it costs the most and catches the least.
+
+## Step 5b — Hand the words forward
+
+Research is the only phase that reads the codebase with no plan to defend, which makes it the cheapest place to notice that the code and the humans use different words for the same thing. That table is the seed of the project's vocabulary; carrying it forward is [language.md](language.md)'s job, and a collision found here costs a sentence, while the same collision found in review costs a rename across a diff.
+
+Do not resolve them here. Naming which word wins is a decision, and decisions in this phase get made by whoever writes the next artifact — record the disagreement, not a verdict.
 
 ## Step 6 — State confidence, then get confirmation
 

@@ -90,6 +90,7 @@ If a slice cannot fit under 500, it is two slices — find the intermediate stat
 | Proves | <the one thing true after this slice that was not true before> |
 | Changes | <the behaviour that changes, in one sentence> |
 | Files | `path/a.ts` (new) · `path/b.ts` (edit) · `test/c.test.ts` (new) |
+| Interface | <the module boundary this slice changes, and whether it is new, widened or untouched — `—` when the slice stays inside one module> |
 | Verify | `<exact command>` → <exit code, count, or literal string expected> |
 | Demo | <what a human runs or clicks to see it, when that differs from Verify> |
 | Rollback | `git revert <commit>` — <what breaks on revert: "nothing", or name it> |
@@ -97,6 +98,8 @@ If a slice cannot fit under 500, it is two slices — find the intermediate stat
 | Status | `[ ]` not started |
 
 ## Slice 2 — <...>          <- same block, once per slice
+
+**The `Interface` row is what makes a slice reviewable in one line.** "Refactor the import code" cannot be checked by reading it; "the importer's interface takes a stream instead of a path" can, and it is the row that tells you whether this slice is a boundary change — yours to design — or work inside a boundary that already holds (Law 15, [program-design.md](program-design.md)). Use the module names from the project's vocabulary, not new ones invented here ([language.md](language.md)).
 
 ## Criteria coverage
 | PRD acceptance criterion | Slice |

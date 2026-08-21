@@ -66,6 +66,8 @@ Silence is the failure this prevents. A user who installed a design skill and re
 | Job | Playbook | Owns it (`prefer`) | On trigger (`also`) |
 |---|---|---|---|
 | `research` | [research.md](research.md) | — | find-docs, obsidian-memory, searxng-search-internet |
+| `grill` | [grill.md](grill.md) | — | obsidian-memory |
+| `language` | [language.md](language.md) | — | code-structure, obsidian-memory |
 | `product` | [product.md](product.md) | — | obsidian-memory |
 | `architecture` | [architecture.md](architecture.md) | — | code-structure, drawio-skill |
 | `program-design` | [program-design.md](program-design.md) | — | code-structure |
@@ -81,11 +83,13 @@ Silence is the failure this prevents. A user who installed a design skill and re
 | `loop` | [loop.md](loop.md) | — | loop, schedule |
 | `handoff` | [context-discipline.md](context-discipline.md) | handoff | obsidian-memory |
 
-Six jobs also print an `external`. These are the only ones: `research` → humanlayer-rpi-research; `architecture` → humanlayer-codebase-design; `program-design` → humanlayer-codebase-design, humanlayer-improve-codebase-architecture; `debug` → superpowers-systematic-debugging; `design-ui` → humanlayer-show-me; `loop` → humanlayer-design-control-loop, humanlayer-build-iterated-agentic-loop.
+Eight jobs also print an `external`. These are the only ones: `research` → humanlayer-rpi-research; `grill` → mattpocock-grilling; `language` → mattpocock-domain-modeling, humanlayer-codebase-design; `architecture` → humanlayer-codebase-design; `program-design` → humanlayer-codebase-design, humanlayer-improve-codebase-architecture; `debug` → superpowers-systematic-debugging; `design-ui` → humanlayer-show-me; `loop` → humanlayer-design-control-loop, humanlayer-build-iterated-agentic-loop.
 
 Why each route exists, and the failure it prevents:
 
 - **research** — no owner, because the codebase is the source of truth; the `also` set covers only facts that are *not* in this repo, so a library API is never answered from recall (Law 1).
+- **grill** — no owner, because the interview is the factory's own discipline (Law 12) and no installed skill can hold the decision tree for this project. The external is the shortest correct statement of the frontier rule if the interview stalls. Memory attaches so the questions do not re-ask what a previous session already settled.
+- **language** — no owner either, for the same reason: the words are the project's, not a skill's. `code-structure` when the terms being settled are module and boundary names; the externals supply the habit of challenging a term in the sentence it appears in, and the depth vocabulary the module map is written in.
 - **product** — pure judgement about the user's problem, which no skill improves; memory attaches only where a prior decision would otherwise be re-litigated.
 - **architecture** — `code-structure` when operational logic is duplicated across flows, because the duplicate is invisible from inside any one flow; `drawio-skill` at 3+ components, where prose hides the topology.
 - **program-design** — the same structural skill, because this is the layer where the shared-service call actually gets shaped; its vocabulary comes from the `humanlayer-codebase-design` external, without which this phase degenerates into restating the architecture.

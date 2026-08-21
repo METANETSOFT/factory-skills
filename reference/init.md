@@ -85,12 +85,23 @@ Settled. Not to be re-argued. Each one names what enforces it.
 | no new dependency without an ADR in `docs/adr/` | review |
 | every change reports lines added *and* lines deleted | commit body |
 
+## How to work with me
+Standing preferences. Each one is something the user said once and should not be asked twice.
+
+| Preference | Setting |
+|---|---|
+| Interview before a plan | yes / no — "no" means open branches become recorded rulings instead of questions |
+| Depth of interview | every branch / only decisions that are expensive to reverse |
+| Review depth | boundary only where safe / read every implementation |
+| Language | the language the user writes in, when it is not the language of the code |
+
 ## Out of scope
 [What we are deliberately not building, and why. A fence, not a backlog.]
 
 ## Where durable facts live
 | Kind | Path |
 |---|---|
+| The project's vocabulary and module map | `<the glossary's one location>` |
 | Architectural decisions | `docs/adr/NNNN-<slug>.md` |
 | Environment and third-party facts | `docs/external/<topic>.md` |
 | Rulings, risks, unfinished work | `<workspace>/ledger.md` |
@@ -100,6 +111,10 @@ Settled. Not to be re-argued. Each one names what enforces it.
 [Everything inferred rather than confirmed, and anything the verify gate cannot prove, each with
 its cost-if-wrong. Empty is a valid answer; vague is not.]
 ```
+
+**How to work with me is the charter's cheapest section and the one that saves the most.** A user who has said "stop asking me questions" has said it to one session; written here, they have said it to every future one, and the alternative is being asked the same thing weekly by something that cannot remember. Fill a row only from something the user actually said — an invented preference is worse than an absent one, because nobody will think to contradict it. Where the row says "no interview", Law 12's fallback applies instead: the decisions still get made, as rulings with their cost-if-wrong, printed once ([grill.md](grill.md)).
+
+The vocabulary row in *Where durable facts live* points at one file, wherever it ended up ([language.md](language.md)). One pointer is the whole value: a project with two glossaries has none.
 
 Adjust those numbers to the repo's existing style where it has one — a limit half the codebase already violates is ignored on day one. Keep **Enforced by** filled: a written convention lowers the *starting* level of slop by roughly a third and then drift resumes at the same rate, so anything that can become a lint rule, a type or a hook becomes one in slice 1. The deletion clause exists because agents add and never consolidate — across 211M measured lines duplicated blocks grew 4–8× while consolidating "moved lines" fell from 25% of changes to under 10%. Definition of done is the back pressure the rest of the pipeline pulls against: [verify.md](verify.md) grades against it and [loop.md](loop.md) terminates on it. A deterministic target moves mountains; "make it good" earns you a victory declaration.
 

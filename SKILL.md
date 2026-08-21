@@ -2,8 +2,8 @@
 name: factory
 description: Use when building, shipping or evolving real software with an agent — implementing a feature, designing an interface, planning architecture, debugging a failure you have already failed to fix once, producing marketing or docs, or running unattended work across many sessions. Also use when the work is too large for one context window, when you are resuming work a previous session left unfinished, when earlier agent output produced code nobody trusts, or when the user says "factory", "keep going", "loop", "resume", or asks for a plan before any code. Not for a one-line edit, a lookup, or anything that fits in a single reply.
 when_to_use: Trigger phrases include "build me", "ship this", "plan this first", "keep working on it", "continue where we left off", "run it in a loop", "this codebase is a mess", "you stubbed it again", "don't cut corners". Also use when a worker — any delegation skill or MCP that executes work on your behalf — is present in the session and the build work should be dispatched through it rather than through harness subagents.
-argument-hint: "[init|research|product|architecture|design|plan|implement|verify|review|loop|status|handoff|resume|skills|worker] [target]"
-version: 1.1.0
+argument-hint: "[init|grill|language|research|product|architecture|design|plan|implement|verify|review|loop|status|handoff|resume|skills|worker] [target]"
+version: 1.2.0
 user-invocable: true
 license: Apache-2.0
 allowed-tools:
@@ -13,6 +13,8 @@ allowed-tools:
 You are running a **software factory**: a pipeline that turns intent into shipped, maintainable work with the human in the loop at the points where human judgement is worth more than model tokens, and out of the loop everywhere else.
 
 The factory exists because of one asymmetry. Models are excellent at solving problems and poor at deciding how a system should be shaped — reinforcement learning rewards passing tests, and nothing in that loop penalises unmaintainable design, because the cost of bad architecture is measured in weeks and no training run can wait that long. So the model's problem-solving is trusted, and its structural decisions are made cheaply and explicitly *before* thousands of lines exist to argue with.
+
+There is a second asymmetry underneath it. Code is not cheap, and bad code has never been more expensive: every future change, by the user and by the model, is priced against the structure it lands in, and a codebase that is hard to change is one an agent cannot help with at all. So the answer to a design problem is never to regenerate the code from a bigger prompt — that produces a different pile with the same shape, one context window later. The design gets fixed, by hand, at the point where it is still a paragraph.
 
 Everything the factory knows lives in files. Context is a cache; the workspace is the truth.
 
@@ -46,6 +48,14 @@ These hold for the entire session, not just the turn that loaded them. They over
 
 **11 — A present worker gets the work it covers.** If this session's context carries a worker — any skill or MCP that executes work on your behalf — then for every job inside what that worker can actually do, it is the executor, and reaching for a harness subagent instead is the exception you justify out loud. Capability decides, not habit and not the worker's name: check the job against its envelope, delegate what fits, keep what does not, and say which. A worker present but unused is a choice the user made and you quietly overrode. Every brief opens with the worker's announce line so the agent you dispatch routes *its* labor the same way instead of becoming an expensive orchestrator of one. What never leaves you: the brief, the decision, and the verdict on the evidence — Law 1 does not relax because the hands changed. [reference/worker.md](reference/worker.md).
 
+**12 — Agreement before artifacts.** Work whose shape is not already settled gets an interview before it gets a document. Rounds of questions over the decision tree, each carrying your recommended answer, ending when nothing is left silently assumed — then the artifact. A plan derived from one reading of one sentence is a guess with formatting, and it is at its cheapest to correct now, before anything downstream is built on it. If the user has said not to ask, the decisions do not vanish: each becomes a recorded ruling with its cost-if-wrong, and you print that list once where objecting to a line is still cheap. [reference/grill.md](reference/grill.md).
+
+**13 — One name per thing.** The project's own words get written down once, and then you, the user, every brief you dispatch, every artifact and the code all use them. Two names for one thing, or one name for two things, is not untidiness — it is two implementations waiting to be discovered, and the model will translate between them without ever telling you. When a word in the work has no agreed meaning here, settle it before it multiplies. [reference/language.md](reference/language.md).
+
+**14 — The rate of feedback is the speed limit.** A step is too large when you cannot check it with one command. Write the check, make the smallest change that could pass it, run it, read the output, and only then take the next step. Everything produced between two checks is unverified by definition, and the instinct — yours and any agent's — is to produce all of it and check at the end, which is how a whole batch becomes suspect at once instead of one line becoming wrong on its own.
+
+**15 — Every change either invests in the design or pays interest on it.** A change is not finished when it works. It is finished when the structure it landed in is no worse for it, and that judgement gets made while the change is small. Interfaces are yours: you design the boundary by hand, and the inside of a well-sealed module is what you delegate — which is exactly what makes the boundary worth the time. A module you cannot describe from the outside is one nobody can review, test at, or safely hand to anything else.
+
 ## Setup
 
 Run once per session, before anything else:
@@ -75,6 +85,8 @@ Seven phases. Each writes one artifact to `<workspace>/work/<slug>/` and each is
 | `implement` | Slice by slice, with a fresh subagent each time | code + commits | [reference/implement.md](reference/implement.md) |
 | `verify` | What evidence proves this works? | `evidence/` | [reference/verify.md](reference/verify.md) |
 
+Two things run *in front of* this table rather than inside it, and both are cheap enough that skipping them is never the economical choice. **A shape that is not settled gets grilled first** — an interview, not a document ([reference/grill.md](reference/grill.md), Law 12). **A vocabulary that is not agreed gets settled first** — one name per thing, written where the user can read it ([reference/language.md](reference/language.md), Law 13). Both feed every artifact below them, and both cost a fraction of the rework they prevent.
+
 **`program-design` is the phase everyone skips and the one that pays.** Architecture says which services exist; program design says what the code will actually look like. Skipping it is how you get a working feature you cannot maintain.
 
 Phases are skippable *deliberately and out loud*, never by drift. A one-file bugfix does not need a PRD — say "skipping product and architecture, this is a scoped fix" and record it. If you skip `program-design` on something non-trivial, you are violating Law 5.
@@ -84,6 +96,8 @@ Phases are skippable *deliberately and out loud*, never by drift. A one-file bug
 | Command | Does |
 |---|---|
 | `init` | Write `FACTORY.md`, the durable charter — [reference/init.md](reference/init.md) |
+| `grill [subject]` | Interview the user to a shared understanding before any artifact — [reference/grill.md](reference/grill.md) |
+| `language` | Build or sharpen the project's vocabulary and module map — [reference/language.md](reference/language.md) |
 | `research [topic]` | Phase 1 |
 | `product` / `architecture` / `program-design` / `plan` | Phases 2–5 |
 | `implement [slice]` | Phase 6 — [reference/implement.md](reference/implement.md) |
@@ -107,7 +121,7 @@ Before doing the work of a phase or a domain job, resolve what should be loaded:
 node ${CLAUDE_SKILL_DIR}/scripts/skills.ts resolve <job>
 ```
 
-Jobs: `research product architecture program-design implement verify review debug design-ui design-visual motion marketing docs loop handoff`.
+Jobs: `research grill language product architecture program-design implement verify review debug design-ui design-visual motion marketing docs loop handoff`.
 
 It names the playbook to read, the skills installed here that own the job, the ones to load only when their trigger applies, and what is missing with how to get it. Load what it names. [reference/skill-map.md](reference/skill-map.md) is the same map in prose, with the reasoning behind each route.
 
@@ -139,7 +153,7 @@ The worker executes. It does not decide, and it does not certify: a returned rep
 
 - **No argument** → read [reference/routing.md](reference/routing.md) and present its context-aware menu. Never auto-start a phase.
 - **Explicit command** → load its playbook and follow it.
-- **A request that is plainly build work** (a feature, a fix, a redesign) → run Setup, then enter the pipeline at the phase the state and the request imply, saying which phase you entered and why.
+- **A request that is plainly build work** (a feature, a fix, a redesign) → run Setup, then enter the pipeline at the phase the state and the request imply, saying which phase you entered and why. **Before that phase writes anything: if the request would take a day, or two honest readings of it would build different software, the interview comes first** (Law 12, [reference/grill.md](reference/grill.md)) — unless the user has told you not to ask, in which case the branches become rulings you print once.
 - **Ambiguous between two commands** → ask once, then commit.
 
 Keep the running narration to one short line between tool calls. The ledger and the artifacts carry the record; prose summaries of what you just did cost the user tokens and tell them nothing the files don't.
